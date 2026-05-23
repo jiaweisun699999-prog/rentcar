@@ -19,6 +19,12 @@ const routes = [
     component: () => import('../views/Register.vue'),
     meta: { title: '注册' }
   },
+  {
+    path: '/orders',
+    name: 'Orders',
+    component: () => import('../views/Orders.vue'),
+    meta: { title: '我的订单' }
+  },
   // 可以根据模块添加更多路由
   {
     path: '/admin',

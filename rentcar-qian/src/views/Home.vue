@@ -63,20 +63,22 @@
         <!-- Car List (Placeholder) -->
         <div class="car-recommend">
           <h3>热门车型推荐</h3>
-          <el-row :gutter="20">
-            <el-col :span="6" v-for="i in 4" :key="i">
+          <el-row :gutter="20" v-if="recommendCars.length > 0">
+            <el-col :span="6" v-for="car in recommendCars" :key="car.id">
               <el-card shadow="hover" class="car-card">
-                <div class="car-img-placeholder"></div>
+                <el-image :src="car.mainImage" fit="cover" style="width: 100%; height: 150px; border-radius: 4px;" v-if="car.mainImage"></el-image>
+                <div class="car-img-placeholder" v-else>暂无图片</div>
                 <div class="car-info">
-                  <h4>大众 迈腾</h4>
-                  <p class="car-desc">经济型 | 5座 | 自动挡</p>
+                  <h4>{{ car.brandSeries }}</h4>
+                  <p class="car-desc">{{ car.carType }} | {{ car.seatsDoors }}</p>
                   <div class="car-price">
-                    <span class="price">¥ 158</span> / 日起
+                    <span class="price">¥ {{ car.dailyPrice || 0 }}</span> / 日起
                   </div>
                 </div>
               </el-card>
             </el-col>
           </el-row>
+          <el-empty description="暂无推荐车型" v-else></el-empty>
         </div>
       </el-main>
 
@@ -89,15 +91,17 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../store';
 import { ArrowDown } from '@element-plus/icons-vue';
+import request from '../utils/request';
 
 const router = useRouter();
 const userStore = useUserStore();
 
 const activeIndex = ref('/');
+const recommendCars = ref([]);
 
 const isLoggedIn = computed(() => !!userStore.token);
 
@@ -109,6 +113,19 @@ const handleCommand = (command) => {
     // router.push('/profile');
   }
 };
+
+const loadRecommendCars = async () => {
+  try {
+    const data = await request.get('/car/recommend');
+    recommendCars.value = data || [];
+  } catch (error) {
+    console.error('Failed to load recommend cars', error);
+  }
+};
+
+onMounted(() => {
+  loadRecommendCars();
+});
 </script>
 
 <style scoped>

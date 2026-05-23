@@ -47,20 +47,35 @@
       </el-header>
       <el-main class="main-content">
         
-        <!-- 默认欢迎页 -->
+        <!-- 用户管理 -->
         <el-card v-if="activeIndex === '1'">
-          <h3>用户管理 (分配给组员 A)</h3>
-          <p>此处将展示用户列表和实名认证审核...</p>
+          <div class="toolbar">
+            <h3>用户列表</h3>
+          </div>
+          <el-table :data="userList" style="width: 100%" border v-loading="loading">
+            <el-table-column prop="id" label="ID" width="80" />
+            <el-table-column prop="phone" label="手机号" width="150" />
+            <el-table-column prop="username" label="用户名" />
+            <el-table-column prop="status" label="状态" width="100">
+              <template #default="scope">
+                <el-tag :type="scope.row.status === 1 ? 'success' : 'danger'">
+                  {{ scope.row.status === 1 ? '正常' : '禁用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="createTime" label="注册时间" width="180" />
+          </el-table>
         </el-card>
 
         <!-- 门店管理 -->
         <el-card v-if="activeIndex === '2'">
           <div class="toolbar">
-            <h3>门店列表 (分配给组员 B)</h3>
+            <h3>门店列表</h3>
             <el-button type="primary" @click="storeDialogVisible = true">新增门店</el-button>
           </div>
-          <el-table :data="storeList" style="width: 100%" border>
-            <el-table-column prop="merchantName" label="所属商户" width="180" />
+          <el-table :data="storeList" style="width: 100%" border v-loading="loading">
+            <el-table-column prop="id" label="ID" width="80" />
+            <el-table-column prop="merchantName" label="所属商户" width="150" />
             <el-table-column prop="cityName" label="城市" width="120" />
             <el-table-column prop="address" label="详细地址" />
             <el-table-column prop="isSupportDelivery" label="送车上门" width="100">
@@ -71,21 +86,21 @@
               </template>
             </el-table-column>
             <el-table-column label="操作" width="150">
-              <template #default>
-                <el-button size="small" type="primary" link>编辑</el-button>
-                <el-button size="small" type="danger" link>删除</el-button>
+              <template #default="scope">
+                <el-button size="small" type="danger" link @click="deleteStore(scope.row.id)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
         </el-card>
 
-        <!-- 车型与车辆管理 (含图片上传) -->
+        <!-- 车型与车辆管理 -->
         <el-card v-if="activeIndex === '3'">
           <div class="toolbar">
-            <h3>车型库管理 (分配给组员 C)</h3>
+            <h3>车型库管理</h3>
             <el-button type="success" @click="carDialogVisible = true">上架新车型</el-button>
           </div>
-          <el-table :data="carModelList" style="width: 100%" border>
+          <el-table :data="carModelList" style="width: 100%" border v-loading="loading">
+            <el-table-column prop="id" label="ID" width="80" />
             <el-table-column label="车型图片" width="150">
               <template #default="scope">
                 <el-image style="width: 100px; height: 60px" :src="scope.row.mainImage" fit="cover" />
@@ -95,12 +110,17 @@
             <el-table-column prop="carType" label="类型 (SUV/轿车)" width="150" />
             <el-table-column prop="seatsDoors" label="座位数/车门" />
             <el-table-column label="操作" width="200">
-              <template #default>
-                <el-button size="small" type="primary" link>录入库存(SKU)</el-button>
-                <el-button size="small" type="danger" link>下架</el-button>
+              <template #default="scope">
+                <el-button size="small" type="primary" link>录入库存</el-button>
+                <el-button size="small" type="danger" link @click="deleteCar(scope.row.id)">下架</el-button>
               </template>
             </el-table-column>
           </el-table>
+        </el-card>
+
+        <!-- 其他模块占位 -->
+        <el-card v-if="activeIndex === '4' || activeIndex === '5'">
+          <el-empty description="该模块尚未开发"></el-empty>
         </el-card>
 
       </el-main>
@@ -129,12 +149,12 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="storeDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="storeDialogVisible = false">确认添加</el-button>
+          <el-button type="primary" @click="submitStore">确认添加</el-button>
         </span>
       </template>
     </el-dialog>
 
-    <!-- 上架新车型弹窗 (图片上传演示) -->
+    <!-- 上架新车型弹窗 -->
     <el-dialog v-model="carDialogVisible" title="上架新车型 (SPU)" width="600px">
       <el-form :model="carForm" label-width="100px">
         <el-form-item label="品牌车系">
@@ -150,24 +170,14 @@
         <el-form-item label="配置">
           <el-input v-model="carForm.seatsDoors" placeholder="如：5座4门" />
         </el-form-item>
-        <el-form-item label="车辆主图">
-          <el-upload
-            class="avatar-uploader"
-            action="/api/upload"
-            :show-file-list="false"
-            :auto-upload="false"
-          >
-            <div class="upload-placeholder">
-              <el-icon class="avatar-uploader-icon"><Plus /></el-icon>
-              <div class="el-upload__text">点击上传车辆靓照</div>
-            </div>
-          </el-upload>
+        <el-form-item label="图片直链">
+          <el-input v-model="carForm.mainImage" placeholder="请输入图片URL(暂代上传)" />
         </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="carDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="carDialogVisible = false">确认上架</el-button>
+          <el-button type="primary" @click="submitCar">确认上架</el-button>
         </span>
       </template>
     </el-dialog>
@@ -176,32 +186,127 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { User, Location, Van, Tickets, Money, Plus } from '@element-plus/icons-vue';
+import { ref, computed, onMounted } from 'vue';
+import { User, Location, Van, Tickets, Money } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import request from '../utils/request';
 
-const activeIndex = ref('3'); // 默认展示车辆管理方便你预览
+const activeIndex = ref('1');
 const menuNames = {
   '1': '用户管理', '2': '门店管理', '3': '车型与车辆管理', '4': '订单管理', '5': '财务流水'
 };
 const currentMenuName = computed(() => menuNames[activeIndex.value]);
 
-const handleSelect = (key) => {
-  activeIndex.value = key;
-};
+const loading = ref(false);
+
+// 数据列表
+const userList = ref([]);
+const storeList = ref([]);
+const carModelList = ref([]);
 
 // 门店状态
 const storeDialogVisible = ref(false);
 const storeForm = ref({ merchantName: '', cityName: '', address: '', isSupportDelivery: 0 });
-const storeList = ref([
-  { merchantName: '直营店', cityName: '北京', address: '朝阳区三里屯SOHO地下车库', isSupportDelivery: 1 }
-]);
 
 // 车辆状态
 const carDialogVisible = ref(false);
-const carForm = ref({ brandSeries: '', carType: '', seatsDoors: '' });
-const carModelList = ref([
-  { mainImage: 'https://img.alicdn.com/imgextra/i3/O1CN013iNpxf1aL1NfU0yRj_!!6000000003312-2-tps-800-600.png', brandSeries: '特斯拉 Model 3', carType: '豪华型', seatsDoors: '5座4门' }
-]);
+const carForm = ref({ brandSeries: '', carType: '', seatsDoors: '', mainImage: '' });
+
+// 监听菜单切换，加载不同数据
+const handleSelect = (key) => {
+  activeIndex.value = key;
+  loadData();
+};
+
+const loadData = () => {
+  if (activeIndex.value === '1') fetchUsers();
+  if (activeIndex.value === '2') fetchStores();
+  if (activeIndex.value === '3') fetchCars();
+};
+
+const fetchUsers = async () => {
+  loading.value = true;
+  try {
+    const res = await request.get('/user/list', { params: { page: 1, pageSize: 100 } });
+    userList.value = res.records || [];
+  } catch (e) {
+    console.error(e);
+  } finally {
+    loading.value = false;
+  }
+};
+
+const fetchStores = async () => {
+  loading.value = true;
+  try {
+    const res = await request.get('/store/list', { params: { page: 1, pageSize: 100 } });
+    storeList.value = res.records || [];
+  } catch (e) {
+    console.error(e);
+  } finally {
+    loading.value = false;
+  }
+};
+
+const fetchCars = async () => {
+  loading.value = true;
+  try {
+    const res = await request.get('/car/model/list', { params: { page: 1, pageSize: 100 } });
+    carModelList.value = res.records || [];
+  } catch (e) {
+    console.error(e);
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 提交门店
+const submitStore = async () => {
+  try {
+    await request.post('/store/add', storeForm.value);
+    ElMessage.success('添加成功');
+    storeDialogVisible.value = false;
+    storeForm.value = { merchantName: '', cityName: '', address: '', isSupportDelivery: 0 };
+    fetchStores();
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+// 提交车型
+const submitCar = async () => {
+  try {
+    await request.post('/car/model/add', carForm.value);
+    ElMessage.success('上架成功');
+    carDialogVisible.value = false;
+    carForm.value = { brandSeries: '', carType: '', seatsDoors: '', mainImage: '' };
+    fetchCars();
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+// 删除门店
+const deleteStore = (id) => {
+  ElMessageBox.confirm('确定要删除该门店吗?', '提示', { type: 'warning' }).then(async () => {
+    await request.delete(`/store/delete/${id}`);
+    ElMessage.success('删除成功');
+    fetchStores();
+  }).catch(() => {});
+};
+
+// 删除车型
+const deleteCar = (id) => {
+  ElMessageBox.confirm('确定要下架该车型吗?', '提示', { type: 'warning' }).then(async () => {
+    await request.delete(`/car/model/delete/${id}`);
+    ElMessage.success('下架成功');
+    fetchCars();
+  }).catch(() => {});
+};
+
+onMounted(() => {
+  loadData();
+});
 </script>
 
 <style scoped>
@@ -243,27 +348,5 @@ const carModelList = ref([
 .toolbar h3 {
   margin: 0;
   color: #333;
-}
-.upload-placeholder {
-  border: 1px dashed #d9d9d9;
-  border-radius: 6px;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  width: 178px;
-  height: 178px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  color: #8c939d;
-  transition: border-color 0.3s;
-}
-.upload-placeholder:hover {
-  border-color: #409EFF;
-}
-.avatar-uploader-icon {
-  font-size: 28px;
-  margin-bottom: 10px;
 }
 </style>
