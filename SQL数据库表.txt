@@ -11,6 +11,8 @@ CREATE TABLE `sys_user` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `phone` VARCHAR(20) NOT NULL COMMENT '手机号(登录账号)',
   `password` VARCHAR(100) NOT NULL COMMENT '加密密码',
+  `username` VARCHAR(50) DEFAULT NULL COMMENT '用户名',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 1正常 0禁用',
   `role` TINYINT NOT NULL DEFAULT 0 COMMENT '角色: 0-普通租客, 1-门店管理员, 2-系统超管',
   `credit_score` INT DEFAULT 0 COMMENT '芝麻信用分模拟(决定是否免押)',
   `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

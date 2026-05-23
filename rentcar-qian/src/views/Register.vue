@@ -2,12 +2,12 @@
   <div class="login-container">
     <el-card class="login-card">
       <div class="logo">
-        <h2>欢迎登录悟空租车</h2>
+        <h2>注册悟空租车</h2>
       </div>
-      <el-form :model="loginForm" :rules="rules" ref="loginFormRef" label-width="0">
+      <el-form :model="registerForm" :rules="rules" ref="registerFormRef" label-width="0">
         <el-form-item prop="phone">
           <el-input 
-            v-model="loginForm.phone" 
+            v-model="registerForm.phone" 
             placeholder="请输入手机号" 
             size="large"
             :prefix-icon="User">
@@ -15,7 +15,7 @@
         </el-form-item>
         <el-form-item prop="password">
           <el-input 
-            v-model="loginForm.password" 
+            v-model="registerForm.password" 
             type="password" 
             placeholder="请输入密码" 
             size="large"
@@ -23,14 +23,25 @@
             show-password>
           </el-input>
         </el-form-item>
+        <el-form-item prop="smsCode">
+          <div style="display: flex; width: 100%; gap: 10px;">
+            <el-input 
+              v-model="registerForm.smsCode" 
+              placeholder="短信验证码" 
+              size="large"
+              :prefix-icon="Message"
+              style="flex: 1;">
+            </el-input>
+            <el-button size="large">获取验证码</el-button>
+          </div>
+        </el-form-item>
         <el-form-item>
-          <el-button type="primary" class="login-btn" size="large" @click="handleLogin" :loading="loading">
-            登录
+          <el-button type="success" class="login-btn" size="large" @click="handleRegister" :loading="loading">
+            立即注册
           </el-button>
         </el-form-item>
         <div class="extra-actions">
-          <a href="#">忘记密码？</a>
-          <a href="javascript:void(0)" @click="$router.push('/register')">立即注册</a>
+          <a href="javascript:void(0)" @click="$router.push('/login')">已有账号？去登录</a>
         </div>
       </el-form>
     </el-card>
@@ -39,21 +50,20 @@
 
 <script setup>
 import { ref, reactive } from 'vue';
-import { User, Lock } from '@element-plus/icons-vue';
+import { User, Lock, Message } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
-import { useUserStore } from '../store';
 import { ElMessage } from 'element-plus';
 import request from '../utils/request';
 
 const router = useRouter();
-const userStore = useUserStore();
 
-const loginFormRef = ref(null);
+const registerFormRef = ref(null);
 const loading = ref(false);
 
-const loginForm = reactive({
+const registerForm = reactive({
   phone: '',
-  password: ''
+  password: '',
+  smsCode: '123456' // 模拟默认验证码
 });
 
 const rules = {
@@ -63,18 +73,19 @@ const rules = {
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' }
+  ],
+  smsCode: [
+    { required: true, message: '请输入验证码', trigger: 'blur' }
   ]
 };
 
-const handleLogin = () => {
-  loginFormRef.value.validate((valid) => {
+const handleRegister = () => {
+  registerFormRef.value.validate((valid) => {
     if (valid) {
       loading.value = true;
-      request.post('/user/login', loginForm).then(res => {
-        userStore.setToken(res.token);
-        userStore.setUserInfo(res.userInfo);
-        ElMessage.success('登录成功');
-        router.push('/');
+      request.post('/user/register', registerForm).then(() => {
+        ElMessage.success('注册成功，请登录');
+        router.push('/login');
         loading.value = false;
       }).catch((err) => {
         loading.value = false;
@@ -111,7 +122,7 @@ const handleLogin = () => {
 }
 .extra-actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   font-size: 0.9rem;
 }
 .extra-actions a {

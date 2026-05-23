@@ -16,6 +16,8 @@ public class SysUser {
     
     private String phone;
     private String password;
+    private String username;
+    private Integer status; // 1:正常 0:禁用
     private Integer role; // 0-普通租客, 1-门店管理员, 2-系统超管
     private Integer creditScore;
     
