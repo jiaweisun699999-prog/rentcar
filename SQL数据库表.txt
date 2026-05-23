@@ -1,0 +1,145 @@
+-- 创建数据库
+CREATE DATABASE IF NOT EXISTS `wukong_rental` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE `wukong_rental`;
+
+-- ==========================================
+-- 1. 账号与风控模块
+-- ==========================================
+
+-- 用户基础表
+CREATE TABLE `sys_user` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `phone` VARCHAR(20) NOT NULL COMMENT '手机号(登录账号)',
+  `password` VARCHAR(100) NOT NULL COMMENT '加密密码',
+  `role` TINYINT NOT NULL DEFAULT 0 COMMENT '角色: 0-普通租客, 1-门店管理员, 2-系统超管',
+  `credit_score` INT DEFAULT 0 COMMENT '芝麻信用分模拟(决定是否免押)',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_phone` (`phone`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户基础表';
+
+-- 用户实名与驾照表
+CREATE TABLE `user_certification` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id` BIGINT NOT NULL COMMENT '关联用户ID (逻辑外键)',
+  `id_card_no` VARCHAR(18) NOT NULL COMMENT '身份证号',
+  `driver_license_url` VARCHAR(255) DEFAULT NULL COMMENT '驾照照片URL',
+  `audit_status` TINYINT NOT NULL DEFAULT 0 COMMENT '审核状态: 0-待提交, 1-审核中, 2-已通过, 3-驳回',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户实名认证表';
+
+-- ==========================================
+-- 2. 商户与门店聚合模块
+-- ==========================================
+
+-- 入驻商户表
+CREATE TABLE `merchant_info` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `merchant_name` VARCHAR(50) NOT NULL COMMENT '商户名称 (如: 飞猪出行)',
+  `service_score` DECIMAL(2,1) DEFAULT 5.0 COMMENT '服务评分',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='入驻商户表';
+
+-- 门店表
+CREATE TABLE `store_info` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `merchant_id` BIGINT NOT NULL COMMENT '所属商户ID (逻辑外键)',
+  `city_name` VARCHAR(50) NOT NULL COMMENT '所在城市 (用于筛选)',
+  `address` VARCHAR(255) NOT NULL COMMENT '详细地址',
+  `is_support_delivery` TINYINT NOT NULL DEFAULT 0 COMMENT '是否支持送车上门: 0-否, 1-是',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  PRIMARY KEY (`id`),
+  KEY `idx_city` (`city_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='实体门店表';
+
+-- ==========================================
+-- 3. 车型与车辆库存模块
+-- ==========================================
+
+-- 车型表 (SPU)
+CREATE TABLE `car_model` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `brand_series` VARCHAR(50) NOT NULL COMMENT '品牌车系 (如: 特斯拉 Model 3)',
+  `car_type` VARCHAR(20) NOT NULL COMMENT '车辆类型 (经济型/SUV/豪华型)',
+  `seats_doors` VARCHAR(20) NOT NULL COMMENT '座/门配置 (如: 5座4门)',
+  `main_image` VARCHAR(255) DEFAULT NULL COMMENT '车型主图URL',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='车型字典表(SPU)';
+
+-- 具体车辆表 (SKU)
+CREATE TABLE `car_instance` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `model_id` BIGINT NOT NULL COMMENT '关联车型ID (逻辑外键)',
+  `store_id` BIGINT NOT NULL COMMENT '当前停放门店ID (逻辑外键)',
+  `plate_number` VARCHAR(20) NOT NULL COMMENT '车牌号',
+  `daily_rent_price` DECIMAL(10,2) NOT NULL COMMENT '基础日租金',
+  `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态: 0-空闲, 1-待整备, 2-租赁中, 3-维修中',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_plate` (`plate_number`),
+  KEY `idx_store_id` (`store_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='实际车辆库存表(SKU)';
+
+-- ==========================================
+-- 4. 交易与订单枢纽模块 (核心)
+-- ==========================================
+
+-- 订单主表
+CREATE TABLE `car_order` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `order_no` VARCHAR(64) NOT NULL COMMENT '业务订单号 (全局唯一)',
+  `user_id` BIGINT NOT NULL COMMENT '租客用户ID (逻辑外键)',
+  `car_id` BIGINT NOT NULL COMMENT '具体车辆ID (逻辑外键)',
+  `pickup_store_id` BIGINT NOT NULL COMMENT '取车门店ID (逻辑外键)',
+  `dropoff_store_id` BIGINT NOT NULL COMMENT '预期还车门店ID (逻辑外键)',
+  `start_time` DATETIME NOT NULL COMMENT '预计起租时间',
+  `end_time` DATETIME NOT NULL COMMENT '预计还车时间',
+  `total_amount` DECIMAL(10,2) NOT NULL COMMENT '订单需付总额',
+  `rent_fee` DECIMAL(10,2) NOT NULL COMMENT '租金总计(日租金*天数)',
+  `basic_insurance_fee` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '基础保障费总计',
+  `handling_fee` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '单次手续费',
+  `status` TINYINT NOT NULL DEFAULT 0 COMMENT '订单状态机: 0-待支付, 1-已支付待取车, 2-租赁中, 3-已还车待结算, 4-已完成, 5-已取消',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_order_no` (`order_no`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_time_range` (`start_time`, `end_time`) COMMENT '用于查库存时间冲突'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='交易订单表';
+
+-- ==========================================
+-- 5. 财务与支付模块
+-- ==========================================
+
+-- 支付与押金流水表
+CREATE TABLE `payment_record` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `order_no` VARCHAR(64) NOT NULL COMMENT '关联订单号 (逻辑外键)',
+  `trade_no` VARCHAR(100) DEFAULT NULL COMMENT '第三方支付流水号(如微信支付号)',
+  `trade_type` TINYINT NOT NULL COMMENT '交易类型: 1-租金支付, 2-车辆押金冻结, 3-违章押金冻结, 4-押金退还',
+  `amount` DECIMAL(10,2) NOT NULL COMMENT '实际支付/冻结金额',
+  `credit_waived_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '信用免押抵扣金额',
+  `status` TINYINT NOT NULL DEFAULT 0 COMMENT '支付状态: 0-处理中, 1-成功, 2-失败',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  PRIMARY KEY (`id`),
+  KEY `idx_order_no` (`order_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='支付与押金流水表';
