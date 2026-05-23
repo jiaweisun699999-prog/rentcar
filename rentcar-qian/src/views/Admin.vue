@@ -147,7 +147,59 @@
 
         <!-- 财务模块占位 -->
         <el-card v-if="activeIndex === '5'">
-          <el-empty description="财务流水对账模块尚未开发"></el-empty>
+          <div class="toolbar">
+            <h3>财务流水</h3>
+            <div class="finance-filters">
+              <el-date-picker
+                v-model="financeDateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                value-format="YYYY-MM-DD"
+              />
+              <el-button type="primary" @click="handleFinanceSearch">查询</el-button>
+              <el-button @click="resetFinanceSearch">重置</el-button>
+            </div>
+          </div>
+          <el-table :data="financeList" style="width: 100%" border v-loading="loading">
+            <el-table-column prop="transactionId" label="交易流水号" min-width="160" />
+            <el-table-column prop="orderId" label="订单号" min-width="160" />
+            <el-table-column prop="amount" label="金额" width="120">
+              <template #default="scope">
+                <span class="amount-text">¥{{ scope.row.amount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="tradeTypeName" label="交易类型" width="140" />
+            <el-table-column prop="type" label="收支类型" width="100">
+              <template #default="scope">
+                <el-tag :type="getFinanceTypeTag(scope.row.type)">
+                  {{ getFinanceTypeText(scope.row.type) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="100">
+              <template #default="scope">
+                <el-tag :type="getPaymentStatusTag(scope.row.status)">
+                  {{ getPaymentStatusText(scope.row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="remark" label="备注" min-width="150" />
+            <el-table-column prop="createTime" label="创建时间" width="180" />
+          </el-table>
+          <div class="pagination-wrapper">
+            <el-pagination
+              v-model:current-page="financeQuery.page"
+              v-model:page-size="financeQuery.pageSize"
+              background
+              layout="total, sizes, prev, pager, next, jumper"
+              :page-sizes="[5, 10, 20, 50]"
+              :total="financeTotal"
+              @size-change="handleFinanceSizeChange"
+              @current-change="fetchFinance"
+            />
+          </div>
         </el-card>
 
       </el-main>
@@ -197,8 +249,17 @@
         <el-form-item label="配置">
           <el-input v-model="carForm.seatsDoors" placeholder="如：5座4门" />
         </el-form-item>
-        <el-form-item label="图片直链">
-          <el-input v-model="carForm.mainImage" placeholder="请输入图片URL(暂代上传)" />
+        <el-form-item label="车型图片">
+          <el-upload
+            class="car-image-uploader"
+            :show-file-list="false"
+            accept="image/*"
+            :http-request="uploadCarImage"
+          >
+            <img v-if="carForm.mainImage" :src="carForm.mainImage" class="car-image-preview" />
+            <el-button v-else type="primary">上传图片</el-button>
+          </el-upload>
+          <el-input v-model="carForm.mainImage" placeholder="上传后自动生成图片URL，也可手动输入" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -254,6 +315,10 @@ const userList = ref([]);
 const storeList = ref([]);
 const carModelList = ref([]);
 const adminOrderList = ref([]);
+const financeList = ref([]);
+const financeTotal = ref(0);
+const financeDateRange = ref([]);
+const financeQuery = ref({ page: 1, pageSize: 10, startDate: '', endDate: '' });
 
 // 门店状态
 const storeDialogVisible = ref(false);
@@ -278,6 +343,7 @@ const loadData = () => {
   if (activeIndex.value === '2') fetchStores();
   if (activeIndex.value === '3') fetchCars();
   if (activeIndex.value === '4') fetchOrders();
+  if (activeIndex.value === '5') fetchFinance();
 };
 
 const fetchOrders = async () => {
@@ -359,6 +425,65 @@ const fetchCars = async () => {
   }
 };
 
+const fetchFinance = async (page) => {
+  if (page) {
+    financeQuery.value.page = page;
+  }
+  loading.value = true;
+  try {
+    const res = await request.get('/finance/list', { params: financeQuery.value });
+    financeList.value = res.records || [];
+    financeTotal.value = res.total || 0;
+  } catch (e) {
+    console.error(e);
+  } finally {
+    loading.value = false;
+  }
+};
+
+const handleFinanceSearch = () => {
+  financeQuery.value.page = 1;
+  financeQuery.value.startDate = financeDateRange.value?.[0] || '';
+  financeQuery.value.endDate = financeDateRange.value?.[1] || '';
+  fetchFinance();
+};
+
+const resetFinanceSearch = () => {
+  financeDateRange.value = [];
+  financeQuery.value = { page: 1, pageSize: 10, startDate: '', endDate: '' };
+  fetchFinance();
+};
+
+const handleFinanceSizeChange = (size) => {
+  financeQuery.value.pageSize = size;
+  financeQuery.value.page = 1;
+  fetchFinance();
+};
+
+const getFinanceTypeTag = (type) => {
+  if (type === 1) return 'success';
+  if (type === 3) return 'warning';
+  return 'info';
+};
+
+const getFinanceTypeText = (type) => {
+  if (type === 1) return '收入';
+  if (type === 3) return '退款';
+  return '其他';
+};
+
+const getPaymentStatusTag = (status) => {
+  if (status === 1) return 'success';
+  if (status === 2) return 'danger';
+  return 'warning';
+};
+
+const getPaymentStatusText = (status) => {
+  if (status === 1) return '成功';
+  if (status === 2) return '失败';
+  return '处理中';
+};
+
 // 提交门店
 const submitStore = async () => {
   try {
@@ -382,6 +507,21 @@ const submitCar = async () => {
     fetchCars();
   } catch (e) {
     console.error(e);
+  }
+};
+
+const uploadCarImage = async (options) => {
+  const formData = new FormData();
+  formData.append('file', options.file);
+  try {
+    const res = await request.post('/upload', formData);
+    carForm.value.mainImage = res.url;
+    ElMessage.success('图片上传成功');
+    options.onSuccess?.(res);
+  } catch (e) {
+    console.error(e);
+    ElMessage.error('图片上传失败');
+    options.onError?.(e);
   }
 };
 
@@ -447,5 +587,29 @@ onMounted(() => {
 .toolbar h3 {
   margin: 0;
   color: #333;
+}
+.finance-filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+.amount-text {
+  color: #f56c6c;
+  font-weight: 600;
+}
+.car-image-uploader {
+  margin-bottom: 10px;
+}
+.car-image-preview {
+  width: 120px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #dcdfe6;
 }
 </style>
