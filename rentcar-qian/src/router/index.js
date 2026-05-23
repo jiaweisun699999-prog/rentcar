@@ -13,6 +13,12 @@ const routes = [
     component: () => import('../views/Login.vue'),
     meta: { title: '登录' }
   },
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('../views/Register.vue'),
+    meta: { title: '注册' }
+  },
   // 可以根据模块添加更多路由
   {
     path: '/admin',

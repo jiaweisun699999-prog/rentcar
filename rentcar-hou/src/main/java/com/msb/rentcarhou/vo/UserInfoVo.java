@@ -6,6 +6,7 @@ import lombok.Data;
 public class UserInfoVo {
     private Long id;
     private String phone;
-    private Integer role;
+    private String username;
+    private String role;
     private Integer creditScore;
 }
