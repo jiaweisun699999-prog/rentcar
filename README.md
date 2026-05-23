@@ -14,9 +14,9 @@
 
 ## 二、 数据库初始化 (后端准备工作)
 
-1. 在本地 MySQL 数据库中创建一个名为 `rentcar` 的数据库：
+1. 在本地 MySQL 数据库中创建一个名为 `wukong_rental` 的数据库：
    ```sql
-   CREATE DATABASE IF NOT EXISTS rentcar DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;
+   CREATE DATABASE IF NOT EXISTS wukong_rental DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;
    ```
 2. *(注：如项目中有 SQL 脚本文件，请先执行 SQL 脚本初始化表结构)*
 3. 打开后端项目 `rentcar-hou`，找到 `src/main/resources/application.yml`（或 `application.properties`）文件。
