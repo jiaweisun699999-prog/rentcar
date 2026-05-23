@@ -8,5 +8,6 @@ public class UserInfoVo {
     private String phone;
     private String username;
     private String role;
+    private Integer status;
     private Integer creditScore;
 }

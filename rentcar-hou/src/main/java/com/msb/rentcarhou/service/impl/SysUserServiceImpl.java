@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.msb.rentcarhou.common.utils.JwtUtils;
 import com.msb.rentcarhou.common.utils.MD5Utils;
+import com.msb.rentcarhou.common.utils.UserContext;
 import com.msb.rentcarhou.dto.LoginReqDto;
 import com.msb.rentcarhou.dto.RegisterReqDto;
 import com.msb.rentcarhou.dto.UserQueryDto;
@@ -25,6 +26,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Override
     public LoginResVo login(LoginReqDto reqDto) {
+        checkLoginParams(reqDto);
+
         // 1. 查询用户是否存在
         LambdaQueryWrapper<SysUser> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(SysUser::getPhone, reqDto.getPhone());
@@ -49,19 +52,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         String token = jwtUtils.generateToken(sysUser.getId(), sysUser.getPhone());
 
         // 5. 组装返回数据
-        UserInfoVo userInfoVo = new UserInfoVo();
-        userInfoVo.setId(sysUser.getId());
-        userInfoVo.setPhone(sysUser.getPhone());
-        userInfoVo.setUsername(sysUser.getUsername());
-        
-        // 角色映射: 0-普通租客, 1-门店管理员, 2-系统超管
-        String roleStr = "user";
-        if (sysUser.getRole() != null) {
-            if (sysUser.getRole() == 1) roleStr = "store_admin";
-            else if (sysUser.getRole() == 2) roleStr = "admin";
-        }
-        userInfoVo.setRole(roleStr);
-        userInfoVo.setCreditScore(sysUser.getCreditScore());
+        UserInfoVo userInfoVo = buildUserInfoVo(sysUser);
 
         LoginResVo resVo = new LoginResVo();
         resVo.setToken(token);
@@ -72,6 +63,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Override
     public void register(RegisterReqDto reqDto) {
+        checkRegisterParams(reqDto);
+
         // 1. 校验手机号是否已存在
         LambdaQueryWrapper<SysUser> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(SysUser::getPhone, reqDto.getPhone());
@@ -94,17 +87,85 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    public UserInfoVo getCurrentUserInfo() {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            throw new RuntimeException("未登录或Token已过期");
+        }
+        SysUser sysUser = this.getById(userId);
+        if (sysUser == null) {
+            throw new RuntimeException("用户不存在");
+        }
+        if (sysUser.getStatus() != null && sysUser.getStatus() == 0) {
+            throw new RuntimeException("账号已被禁用");
+        }
+        return buildUserInfoVo(sysUser);
+    }
+
+    @Override
     public Page<SysUser> getUserList(UserQueryDto queryDto) {
-        Page<SysUser> page = new Page<>(queryDto.getPage(), queryDto.getPageSize());
+        int pageNum = queryDto == null || queryDto.getPage() == null || queryDto.getPage() < 1 ? 1 : queryDto.getPage();
+        int pageSize = queryDto == null || queryDto.getPageSize() == null || queryDto.getPageSize() < 1 ? 10 : queryDto.getPageSize();
+        Page<SysUser> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<SysUser> queryWrapper = new LambdaQueryWrapper<>();
         
-        if (StringUtils.hasText(queryDto.getKeyword())) {
+        if (queryDto != null && StringUtils.hasText(queryDto.getKeyword())) {
             queryWrapper.like(SysUser::getUsername, queryDto.getKeyword())
                         .or()
                         .like(SysUser::getPhone, queryDto.getKeyword());
         }
         queryWrapper.orderByDesc(SysUser::getCreateTime);
         
-        return this.page(page, queryWrapper);
+        Page<SysUser> userPage = this.page(page, queryWrapper);
+        userPage.getRecords().forEach(user -> user.setPassword(null));
+        return userPage;
+    }
+
+    private void checkLoginParams(LoginReqDto reqDto) {
+        if (reqDto == null) {
+            throw new RuntimeException("登录参数不能为空");
+        }
+        if (!StringUtils.hasText(reqDto.getPhone())) {
+            throw new RuntimeException("手机号不能为空");
+        }
+        if (!StringUtils.hasText(reqDto.getPassword())) {
+            throw new RuntimeException("密码不能为空");
+        }
+    }
+
+    private void checkRegisterParams(RegisterReqDto reqDto) {
+        if (reqDto == null) {
+            throw new RuntimeException("注册参数不能为空");
+        }
+        if (!StringUtils.hasText(reqDto.getPhone())) {
+            throw new RuntimeException("手机号不能为空");
+        }
+        if (!reqDto.getPhone().matches("^1[3-9]\\d{9}$")) {
+            throw new RuntimeException("手机号格式不正确");
+        }
+        if (!StringUtils.hasText(reqDto.getPassword())) {
+            throw new RuntimeException("密码不能为空");
+        }
+        if (reqDto.getPassword().length() < 6) {
+            throw new RuntimeException("密码长度不能少于6位");
+        }
+    }
+
+    private UserInfoVo buildUserInfoVo(SysUser sysUser) {
+        UserInfoVo userInfoVo = new UserInfoVo();
+        userInfoVo.setId(sysUser.getId());
+        userInfoVo.setPhone(sysUser.getPhone());
+        userInfoVo.setUsername(sysUser.getUsername());
+        userInfoVo.setStatus(sysUser.getStatus());
+        
+        // 角色映射: 0-普通租客, 1-门店管理员, 2-系统超管
+        String roleStr = "user";
+        if (sysUser.getRole() != null) {
+            if (sysUser.getRole() == 1) roleStr = "store_admin";
+            else if (sysUser.getRole() == 2) roleStr = "admin";
+        }
+        userInfoVo.setRole(roleStr);
+        userInfoVo.setCreditScore(sysUser.getCreditScore());
+        return userInfoVo;
     }
 }
