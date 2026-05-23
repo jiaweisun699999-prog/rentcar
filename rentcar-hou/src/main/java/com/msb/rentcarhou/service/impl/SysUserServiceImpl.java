@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.msb.rentcarhou.common.utils.JwtUtils;
+import com.msb.rentcarhou.common.utils.MD5Utils;
 import com.msb.rentcarhou.dto.LoginReqDto;
 import com.msb.rentcarhou.dto.RegisterReqDto;
 import com.msb.rentcarhou.dto.UserQueryDto;
@@ -33,8 +34,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             throw new RuntimeException("账号不存在");
         } 
         
-        // 2. 校验密码
-        if (!sysUser.getPassword().equals(reqDto.getPassword())) {
+        // 2. 校验密码 (对用户输入的明文密码进行MD5加密后进行比对)
+        String encryptPassword = MD5Utils.encrypt(reqDto.getPassword());
+        if (!sysUser.getPassword().equals(encryptPassword)) {
             throw new RuntimeException("账号或密码错误");
         }
 
@@ -81,7 +83,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         // 2. 插入新用户
         SysUser sysUser = new SysUser();
         sysUser.setPhone(reqDto.getPhone());
-        sysUser.setPassword(reqDto.getPassword()); // 实际应加密
+        // 对明文密码进行 MD5 加密后存入数据库
+        sysUser.setPassword(MD5Utils.encrypt(reqDto.getPassword()));
         sysUser.setUsername("用户" + reqDto.getPhone().substring(7)); // 默认昵称
         sysUser.setRole(0);
         sysUser.setStatus(1); // 默认正常
