@@ -43,7 +43,7 @@ public class JwtInterceptor implements HandlerInterceptor {
         // 认证失败，返回 401 状态码
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json;charset=utf-8");
-        response.getWriter().write("{\"code\":401,\"msg\":\"未登录或Token已过期\",\"data\":null}");
+        response.getWriter().write("{\"code\":401,\"msg\":\"未登录或Token已过期\",\"message\":\"未登录或Token已过期\",\"data\":null}");
         return false;
     }
 

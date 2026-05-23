@@ -6,7 +6,11 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/wukong_rental?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
     username: root
-    password: 149779 # 请根据实际情况修改
+    password: 123456 # 请根据实际情况修改
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
     
 mybatis-plus:
   configuration:

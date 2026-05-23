@@ -8,6 +8,7 @@ import com.msb.rentcarhou.dto.UserQueryDto;
 import com.msb.rentcarhou.entity.SysUser;
 import com.msb.rentcarhou.service.SysUserService;
 import com.msb.rentcarhou.vo.LoginResVo;
+import com.msb.rentcarhou.vo.UserInfoVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -33,7 +34,17 @@ public class UserController {
     public Result<Void> register(@RequestBody RegisterReqDto reqDto) {
         try {
             sysUserService.register(reqDto);
-            return Result.success(null);
+            return Result.success("注册成功", null);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @GetMapping("/info")
+    public Result<UserInfoVo> info() {
+        try {
+            UserInfoVo userInfoVo = sysUserService.getCurrentUserInfo();
+            return Result.success(userInfoVo);
         } catch (Exception e) {
             return Result.error(e.getMessage());
         }
