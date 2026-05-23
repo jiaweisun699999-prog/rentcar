@@ -111,16 +111,43 @@
             <el-table-column prop="seatsDoors" label="座位数/车门" />
             <el-table-column label="操作" width="200">
               <template #default="scope">
-                <el-button size="small" type="primary" link>录入库存</el-button>
+                <el-button size="small" type="primary" link @click="openSkuDialog(scope.row)">录入库存</el-button>
                 <el-button size="small" type="danger" link @click="deleteCar(scope.row.id)">下架</el-button>
               </template>
             </el-table-column>
           </el-table>
         </el-card>
 
-        <!-- 其他模块占位 -->
-        <el-card v-if="activeIndex === '4' || activeIndex === '5'">
-          <el-empty description="该模块尚未开发"></el-empty>
+        <!-- 订单管理 -->
+        <el-card v-if="activeIndex === '4'">
+          <div class="toolbar">
+            <h3>订单流转控制台</h3>
+          </div>
+          <el-table :data="adminOrderList" style="width: 100%" border v-loading="loading">
+            <el-table-column prop="orderId" label="业务单号" width="180" />
+            <el-table-column prop="brandSeries" label="预订车型" width="150" />
+            <el-table-column prop="startDate" label="起租日" width="120" />
+            <el-table-column prop="totalAmount" label="总金额" width="100" />
+            <el-table-column prop="status" label="当前状态" width="100">
+              <template #default="scope">
+                <el-tag :type="scope.row.status === 1 ? 'success' : 'info'">
+                  {{ scope.row.status === 1 ? '待取车' : (scope.row.status === 2 ? '租赁中' : '其他') }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态流转操作" width="250">
+              <template #default="scope">
+                <el-button size="small" type="success" plain v-if="scope.row.status === 1" @click="updateOrderStatus(scope.row.orderId, 2)">确认交车</el-button>
+                <el-button size="small" type="primary" plain v-if="scope.row.status === 2" @click="updateOrderStatus(scope.row.orderId, 3)">确认还车</el-button>
+                <el-button size="small" type="warning" plain v-if="scope.row.status === 3" @click="updateOrderStatus(scope.row.orderId, 4)">完成结算</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+
+        <!-- 财务模块占位 -->
+        <el-card v-if="activeIndex === '5'">
+          <el-empty description="财务流水对账模块尚未开发"></el-empty>
         </el-card>
 
       </el-main>
@@ -182,6 +209,29 @@
       </template>
     </el-dialog>
 
+    <!-- 录入新车 SKU 弹窗 -->
+    <el-dialog v-model="skuDialogVisible" title="录入具体车辆(SKU)" width="500px">
+      <el-form :model="skuForm" label-width="100px">
+        <el-form-item label="车牌号">
+          <el-input v-model="skuForm.plateNumber" placeholder="如：京A·88888" />
+        </el-form-item>
+        <el-form-item label="归属门店">
+          <el-select v-model="skuForm.storeId" placeholder="请选择停放门店">
+            <el-option v-for="store in storeList" :key="store.id" :label="store.merchantName + '-' + store.address" :value="store.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="日租金(¥)">
+          <el-input-number v-model="skuForm.dailyRentPrice" :min="10" :step="10" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="skuDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitSku">确认录入</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
   </el-container>
 </template>
 
@@ -203,6 +253,7 @@ const loading = ref(false);
 const userList = ref([]);
 const storeList = ref([]);
 const carModelList = ref([]);
+const adminOrderList = ref([]);
 
 // 门店状态
 const storeDialogVisible = ref(false);
@@ -211,6 +262,10 @@ const storeForm = ref({ merchantName: '', cityName: '', address: '', isSupportDe
 // 车辆状态
 const carDialogVisible = ref(false);
 const carForm = ref({ brandSeries: '', carType: '', seatsDoors: '', mainImage: '' });
+
+// SKU状态
+const skuDialogVisible = ref(false);
+const skuForm = ref({ modelId: '', storeId: '', plateNumber: '', dailyRentPrice: 0 });
 
 // 监听菜单切换，加载不同数据
 const handleSelect = (key) => {
@@ -222,6 +277,50 @@ const loadData = () => {
   if (activeIndex.value === '1') fetchUsers();
   if (activeIndex.value === '2') fetchStores();
   if (activeIndex.value === '3') fetchCars();
+  if (activeIndex.value === '4') fetchOrders();
+};
+
+const fetchOrders = async () => {
+  loading.value = true;
+  try {
+    const res = await request.get('/order/list', { params: { page: 1, pageSize: 100 } });
+    adminOrderList.value = res.records || [];
+  } catch (e) {
+    console.error(e);
+  } finally {
+    loading.value = false;
+  }
+};
+
+const updateOrderStatus = async (orderId, status) => {
+  try {
+    await request.put('/order/status/update', { orderNo: orderId, status });
+    ElMessage.success('订单状态更新成功');
+    fetchOrders();
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+const openSkuDialog = (carModel) => {
+  skuForm.value.modelId = carModel.id;
+  skuForm.value.storeId = '';
+  skuForm.value.plateNumber = '';
+  skuForm.value.dailyRentPrice = carModel.dailyPrice || 100;
+  skuDialogVisible.value = true;
+  if(storeList.value.length === 0) {
+    fetchStores(); // 确保有门店可选
+  }
+};
+
+const submitSku = async () => {
+  try {
+    await request.post('/car/instance/add', skuForm.value);
+    ElMessage.success('新车SKU录入成功');
+    skuDialogVisible.value = false;
+  } catch (e) {
+    console.error(e);
+  }
 };
 
 const fetchUsers = async () => {

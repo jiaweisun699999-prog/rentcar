@@ -54,7 +54,7 @@
                 />
               </el-form-item>
               <el-form-item>
-                <el-button type="primary" size="large">立即去选车</el-button>
+                <el-button type="primary" size="large" @click="$router.push('/search')">立即去选车</el-button>
               </el-form-item>
             </el-form>
           </el-card>
