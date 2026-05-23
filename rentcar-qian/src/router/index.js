@@ -25,6 +25,18 @@ const routes = [
     component: () => import('../views/Orders.vue'),
     meta: { title: '我的订单' }
   },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('../views/Profile.vue'),
+    meta: { title: '个人中心' }
+  },
+  {
+    path: '/search',
+    name: 'Search',
+    component: () => import('../views/CarSearch.vue'),
+    meta: { title: '选车预订' }
+  },
   // 可以根据模块添加更多路由
   {
     path: '/admin',

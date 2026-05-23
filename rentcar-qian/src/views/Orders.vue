@@ -57,7 +57,7 @@
               </el-table-column>
               <el-table-column label="操作">
                 <template #default="scope">
-                  <el-button size="small" type="primary" plain v-if="scope.row.status === 0">去支付</el-button>
+                  <el-button size="small" type="primary" plain v-if="scope.row.status === 0" @click="handlePayment(scope.row)">去支付</el-button>
                   <el-button size="small" type="info" plain v-else>查看详情</el-button>
                 </template>
               </el-table-column>
@@ -83,6 +83,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../store';
 import { ArrowDown } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
 import request from '../utils/request';
 
 const router = useRouter();
@@ -118,6 +119,21 @@ const fetchOrders = async () => {
     console.error('Failed to load orders', error);
   } finally {
     loading.value = false;
+  }
+};
+
+const handlePayment = async (order) => {
+  try {
+    // 模拟调用网关
+    await request.post('/pay/mock', {
+      orderNo: order.orderId,
+      payType: 1,
+      amount: order.totalAmount
+    });
+    ElMessage.success('支付成功，门店正在为您准备车辆');
+    fetchOrders(); // 刷新列表
+  } catch (error) {
+    console.error(error);
   }
 };
 
