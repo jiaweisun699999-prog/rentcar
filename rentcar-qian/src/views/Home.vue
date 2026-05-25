@@ -201,14 +201,30 @@ const openCarDetail = (car) => {
 
 const bookFromHomeDetail = (car) => {
   detailDialogVisible.value = false;
-  if (!searchParams.value.storeId || !searchParams.value.timeRange || searchParams.value.timeRange.length !== 2) {
-    ElMessage.warning('请选择门店和完整的取还车时间');
+  
+  // 精确匹配：直接使用后端返回的该车型实际所在的门店 ID
+  let targetStoreId = car.storeId;
+  
+  // 降级匹配：如果后端没返回，再根据城市猜
+  if (!targetStoreId) {
+    targetStoreId = searchParams.value.storeId;
+    if (car.locationCity) {
+      const storeInCarCity = stores.value.find(s => s.cityName === car.locationCity);
+      if (storeInCarCity) {
+        targetStoreId = storeInCarCity.id;
+      }
+    }
+  }
+
+  if (!targetStoreId || !searchParams.value.timeRange || searchParams.value.timeRange.length !== 2) {
+    ElMessage.warning('请选择完整的取还车时间');
     return;
   }
+  
   router.push({
     path: '/search',
     query: {
-      storeId: searchParams.value.storeId,
+      storeId: targetStoreId,
       startTime: searchParams.value.timeRange[0],
       endTime: searchParams.value.timeRange[1],
       autoBookModelId: car.id
