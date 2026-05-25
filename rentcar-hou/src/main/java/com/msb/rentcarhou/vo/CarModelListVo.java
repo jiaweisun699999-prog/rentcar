@@ -14,6 +14,9 @@ public class CarModelListVo {
     private String seatsDoors;
     private String mainImage;
     private BigDecimal dailyPrice;
+    private String licensePlate;
+    private String locationCity;
+    private Long storeId;
     private Integer status;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")

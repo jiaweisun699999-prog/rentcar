@@ -9,4 +9,5 @@ public class CarModelQueryDto {
     private Long storeId;
     private String startTime;
     private String endTime;
+    private String cityName;
 }

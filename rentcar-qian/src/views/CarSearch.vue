@@ -32,17 +32,31 @@
       <el-main class="main-content">
         <div class="result-header">
           <div>
-            <h3>可选车型</h3>
-            <p>{{ selectedStoreLabel }} ｜ {{ searchParams.timeRange[0] }} 至 {{ searchParams.timeRange[1] }}</p>
+            <h3>可选车门店</h3>
+            <div style="display: flex; gap: 15px; margin-top: 10px;">
+              <el-select v-model="searchParams.storeId" @change="fetchAvailableCars" placeholder="请选择车门店" style="width: 250px;">
+                <el-option v-for="store in stores" :key="store.id" :label="formatStoreLabel(store)" :value="store.id" />
+              </el-select>
+              <el-date-picker
+                v-model="searchParams.timeRange"
+                type="datetimerange"
+                range-separator="至"
+                start-placeholder="取车时间"
+                end-placeholder="还车时间"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                @change="fetchAvailableCars"
+                style="width: 350px;"
+              />
+            </div>
           </div>
-          <el-button type="primary" plain @click="router.push('/')">返回修改条件</el-button>
+          <el-button type="primary" plain @click="router.push('/')">返回首页</el-button>
         </div>
 
         <!-- 车辆列表区 -->
         <div class="car-list" v-loading="loading">
           <el-row :gutter="20" v-if="carList.length > 0">
             <el-col :span="6" v-for="car in carList" :key="car.id">
-              <el-card shadow="hover" class="car-card">
+              <el-card shadow="hover" class="car-card" @click="openCarDetail(car)" style="cursor: pointer;">
                 <el-image :src="car.mainImage" fit="cover" style="width: 100%; height: 160px; border-radius: 4px;" v-if="car.mainImage"></el-image>
                 <div class="car-img-placeholder" v-else>暂无图片</div>
                 <div class="car-info">
@@ -50,7 +64,7 @@
                   <p class="car-desc">{{ car.carType }} | {{ car.seatsDoors }}</p>
                   <div class="car-price-row">
                     <div><span class="price">¥ {{ car.dailyPrice }}</span> / 日起</div>
-                    <el-button type="success" size="small" @click="openOrderPreview(car)">预订</el-button>
+                    <el-button type="success" size="small" @click.stop="openOrderPreview(car)">预订</el-button>
                   </div>
                 </div>
               </el-card>
@@ -76,6 +90,35 @@
         <p>&copy; 2024 悟空租车 版权所有</p>
       </el-footer>
     </el-container>
+
+    <!-- 车型详情弹窗 -->
+    <el-dialog v-model="detailDialogVisible" title="车型详情" width="500px">
+      <div v-if="detailCar" class="car-detail-popup">
+        <el-image :src="detailCar.mainImage" fit="cover" class="detail-image" />
+        <div class="detail-info-section">
+          <h3 class="detail-brand">{{ detailCar.brandSeries }}</h3>
+          <el-descriptions :column="1" border style="margin-top: 15px;">
+            <el-descriptions-item label="车辆类型">{{ detailCar.carType }}</el-descriptions-item>
+            <el-descriptions-item label="配置规格">{{ detailCar.seatsDoors }}</el-descriptions-item>
+            <el-descriptions-item label="车辆所在地">
+              <el-tag type="success" effect="plain">{{ detailCar.locationCity || '上海市' }}</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="车牌号">
+              <el-tag type="info" effect="plain">{{ detailCar.licensePlate || '暂无车牌' }}</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="日租金">
+              <span class="detail-price">¥ {{ detailCar.dailyPrice }}</span> / 日起
+            </el-descriptions-item>
+          </el-descriptions>
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="detailDialogVisible = false">关闭</el-button>
+          <el-button type="success" @click="bookFromDetail(detailCar)">立即预订</el-button>
+        </span>
+      </template>
+    </el-dialog>
 
     <!-- 订单预结算弹窗 -->
     <el-dialog v-model="previewDialogVisible" title="核对订单明细" width="500px">
@@ -136,13 +179,9 @@ const searchParams = ref({
   timeRange: []
 });
 
-const selectedStoreLabel = computed(() => {
-  const store = stores.value.find(item => String(item.id) === String(searchParams.value.storeId));
-  if (!store) {
-    return '已选门店';
-  }
+const formatStoreLabel = (store) => {
   return `${store.merchantName || ''}${store.address ? ' - ' + store.address : ''}`;
-});
+};
 
 // 加载门店下拉列表
 const loadStores = async () => {
@@ -173,6 +212,18 @@ const fetchAvailableCars = async () => {
     });
     carList.value = res.records || [];
     total.value = res.total || 0;
+
+    // 检查是否有自动预订的车型ID
+    const autoBookId = route.value.query.autoBookModelId;
+    if (autoBookId && carList.value.length > 0) {
+      const targetCar = carList.value.find(car => String(car.id) === String(autoBookId));
+      if (targetCar) {
+        // 稍微延时等UI渲染后弹出
+        setTimeout(() => {
+          openOrderPreview(targetCar);
+        }, 100);
+      }
+    }
   } catch (error) {
     console.error(error);
   } finally {
@@ -184,6 +235,20 @@ const handleSizeChange = (size) => {
   pagination.value.pageSize = size;
   pagination.value.page = 1;
   fetchAvailableCars();
+};
+
+// 车型详情弹窗逻辑
+const detailDialogVisible = ref(false);
+const detailCar = ref(null);
+
+const openCarDetail = (car) => {
+  detailCar.value = car;
+  detailDialogVisible.value = true;
+};
+
+const bookFromDetail = (car) => {
+  detailDialogVisible.value = false;
+  openOrderPreview(car);
 };
 
 // 预订与弹窗逻辑
@@ -246,7 +311,8 @@ const handleCommand = (command) => {
 };
 
 onMounted(() => {
-  searchParams.value.storeId = route.value.query.storeId || '';
+  const qStoreId = route.value.query.storeId;
+  searchParams.value.storeId = qStoreId ? Number(qStoreId) : '';
   searchParams.value.timeRange = [route.value.query.startTime || '', route.value.query.endTime || ''];
   loadStores();
   fetchAvailableCars();
@@ -351,5 +417,31 @@ onMounted(() => {
   color: #409EFF;
   display: flex;
   align-items: center;
+}
+.car-detail-popup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.detail-image {
+  width: 100%;
+  height: 240px;
+  border-radius: 8px;
+  object-fit: cover;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.detail-info-section {
+  width: 100%;
+}
+.detail-brand {
+  margin: 0 0 15px 0;
+  font-size: 1.5rem;
+  color: #303133;
+}
+.detail-price {
+  color: #f56c6c;
+  font-size: 1.6rem;
+  font-weight: bold;
 }
 </style>
