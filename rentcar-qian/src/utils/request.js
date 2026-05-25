@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { ElMessage } from 'element-plus';
+import router from '../router';
 
 // 创建 axios 实例
 const service = axios.create({
@@ -41,15 +42,32 @@ service.interceptors.response.use(
       // 可以根据特定的 code（如 401 token 失效）做特殊处理
       if (res.code === 401) {
         localStorage.removeItem('token');
-        // 跳转登录页等...
+        if (router.currentRoute.value.path !== '/login') {
+          router.push('/login');
+        }
       }
       return Promise.reject(new Error(res.msg || 'Error'));
     }
   },
   error => {
+    const status = error.response?.status;
+    const data = error.response?.data;
+    if (status === 401 || data?.code === 401) {
+      const message = data?.message || data?.msg || '请先登录或登录已过期';
+      localStorage.removeItem('token');
+      ElMessage({
+        message,
+        type: 'warning',
+        duration: 3000
+      });
+      if (router.currentRoute.value.path !== '/login') {
+        router.push('/login');
+      }
+      return Promise.reject(new Error(message));
+    }
     console.error('Response Error:', error);
     ElMessage({
-      message: error.message,
+      message: data?.message || data?.msg || error.message,
       type: 'error',
       duration: 3000
     });
