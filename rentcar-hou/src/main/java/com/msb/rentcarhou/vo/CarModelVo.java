@@ -12,4 +12,6 @@ public class CarModelVo {
     private String seatsDoors;
     private String mainImage;
     private BigDecimal dailyPrice;
+    private String licensePlate;
+    private String locationCity;
 }
