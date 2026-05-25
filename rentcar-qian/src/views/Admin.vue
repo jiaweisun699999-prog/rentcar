@@ -71,7 +71,18 @@
         <el-card v-if="activeIndex === '2'">
           <div class="toolbar">
             <h3>门店列表</h3>
-            <el-button type="primary" @click="storeDialogVisible = true">新增门店</el-button>
+            <div class="store-filters">
+              <el-input
+                v-model="storeQuery.cityName"
+                placeholder="请输入城市"
+                clearable
+                style="width: 180px"
+                @keyup.enter="handleStoreSearch"
+              />
+              <el-button type="primary" @click="handleStoreSearch">查询</el-button>
+              <el-button @click="resetStoreSearch">重置</el-button>
+              <el-button type="primary" @click="storeDialogVisible = true">新增门店</el-button>
+            </div>
           </div>
           <el-table :data="storeList" style="width: 100%" border v-loading="loading">
             <el-table-column prop="id" label="ID" width="80" />
@@ -91,6 +102,18 @@
               </template>
             </el-table-column>
           </el-table>
+          <div class="pagination-wrapper">
+            <el-pagination
+              v-model:current-page="storeQuery.page"
+              v-model:page-size="storeQuery.pageSize"
+              background
+              layout="total, sizes, prev, pager, next, jumper"
+              :page-sizes="[5, 10, 20, 50]"
+              :total="storeTotal"
+              @size-change="handleStoreSizeChange"
+              @current-change="fetchStores"
+            />
+          </div>
         </el-card>
 
         <!-- 车型与车辆管理 -->
@@ -274,10 +297,14 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { User, Location, Van, Tickets, Money } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import request from '../utils/request';
+import { useUserStore } from '../store';
 
+const router = useRouter();
+const userStore = useUserStore();
 const activeIndex = ref('1');
 const menuNames = {
   '1': '用户管理', '2': '门店管理', '3': '车型与车辆管理', '4': '订单管理', '5': '财务流水'
@@ -292,6 +319,8 @@ const storeList = ref([]);
 const carModelList = ref([]);
 const adminOrderList = ref([]);
 const financeList = ref([]);
+const storeTotal = ref(0);
+const storeQuery = ref({ page: 1, pageSize: 10, cityName: '' });
 const financeTotal = ref(0);
 const financeDateRange = ref([]);
 const financeQuery = ref({ page: 1, pageSize: 10, startDate: '', endDate: '' });
@@ -311,6 +340,11 @@ const handleSelect = (key) => {
 };
 
 const loadData = () => {
+  if (!userStore.token) {
+    ElMessage.warning('请先登录后访问管理后台');
+    router.push('/login');
+    return;
+  }
   if (activeIndex.value === '1') fetchUsers();
   if (activeIndex.value === '2') fetchStores();
   if (activeIndex.value === '3') fetchCars();
@@ -352,16 +386,36 @@ const fetchUsers = async () => {
   }
 };
 
-const fetchStores = async () => {
+const fetchStores = async (page) => {
+  if (page) {
+    storeQuery.value.page = page;
+  }
   loading.value = true;
   try {
-    const res = await request.get('/store/list', { params: { page: 1, pageSize: 100 } });
+    const res = await request.get('/store/list', { params: storeQuery.value });
     storeList.value = res.records || [];
+    storeTotal.value = res.total || 0;
   } catch (e) {
     console.error(e);
   } finally {
     loading.value = false;
   }
+};
+
+const handleStoreSearch = () => {
+  storeQuery.value.page = 1;
+  fetchStores();
+};
+
+const resetStoreSearch = () => {
+  storeQuery.value = { page: 1, pageSize: 10, cityName: '' };
+  fetchStores();
+};
+
+const handleStoreSizeChange = (size) => {
+  storeQuery.value.pageSize = size;
+  storeQuery.value.page = 1;
+  fetchStores();
 };
 
 const fetchCars = async () => {
@@ -442,6 +496,7 @@ const submitStore = async () => {
     ElMessage.success('添加成功');
     storeDialogVisible.value = false;
     storeForm.value = { merchantName: '', cityName: '', address: '', isSupportDelivery: 0 };
+    storeQuery.value.page = 1;
     fetchStores();
   } catch (e) {
     console.error(e);
@@ -540,6 +595,11 @@ onMounted(() => {
   color: #333;
 }
 .finance-filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.store-filters {
   display: flex;
   gap: 12px;
   align-items: center;
