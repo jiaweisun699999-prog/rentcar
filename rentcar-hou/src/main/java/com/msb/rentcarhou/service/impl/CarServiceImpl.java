@@ -88,12 +88,14 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
         String selectedCity = queryDto != null ? queryDto.getCityName() : null;
         Map<Long, String> licensePlateMap = getLicensePlateMap(modelIds, selectedCity);
         Map<Long, String> cityNamesMap = getCityNameMap(modelIds, selectedCity);
+        Map<Long, Long> storeIdsMap = getStoreIdMap(modelIds, selectedCity);
         List<CarModelListVo> records = modelPage.getRecords().stream()
                 .map(model -> buildModelListVo(
                         model,
                         dailyPriceMap.get(model.getId()),
                         licensePlateMap.get(model.getId()),
-                        cityNamesMap.get(model.getId())
+                        cityNamesMap.get(model.getId()),
+                        storeIdsMap.get(model.getId())
                 ))
                 .toList();
 
@@ -111,12 +113,14 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
         Map<Long, BigDecimal> dailyPriceMap = getMinDailyPriceMap(modelIds);
         Map<Long, String> licensePlateMap = getLicensePlateMap(modelIds, null);
         Map<Long, String> cityNamesMap = getCityNameMap(modelIds, null);
+        Map<Long, Long> storeIdsMap = getStoreIdMap(modelIds, null);
         return models.stream()
                 .map(model -> buildRecommendVo(
                         model,
                         dailyPriceMap.get(model.getId()),
                         licensePlateMap.get(model.getId()),
-                        cityNamesMap.get(model.getId())
+                        cityNamesMap.get(model.getId()),
+                        storeIdsMap.get(model.getId())
                 ))
                 .toList();
     }
@@ -167,7 +171,8 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
                         model,
                         getMinDailyPrice(instanceMap.get(model.getId())),
                         getFirstLicensePlate(instanceMap.get(model.getId())),
-                        city
+                        city,
+                        queryDto.getStoreId()
                 ))
                 .toList();
 
@@ -217,7 +222,7 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
                 .collect(Collectors.groupingBy(CarInstance::getModelId, Collectors.collectingAndThen(Collectors.toList(), this::getMinDailyPrice)));
     }
 
-    private CarModelListVo buildModelListVo(CarModel model, BigDecimal dailyPrice, String licensePlate, String locationCity) {
+    private CarModelListVo buildModelListVo(CarModel model, BigDecimal dailyPrice, String licensePlate, String locationCity, Long storeId) {
         CarModelListVo vo = new CarModelListVo();
         vo.setId(model.getId());
         vo.setBrandSeries(model.getBrandSeries());
@@ -245,10 +250,11 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
 
         vo.setCreateTime(model.getCreateTime());
         vo.setStatus(MODEL_STATUS_ON_SALE);
+        vo.setStoreId(storeId);
         return vo;
     }
 
-    private CarModelVo buildRecommendVo(CarModel model, BigDecimal dailyPrice, String licensePlate, String locationCity) {
+    private CarModelVo buildRecommendVo(CarModel model, BigDecimal dailyPrice, String licensePlate, String locationCity, Long storeId) {
         CarModelVo vo = new CarModelVo();
         vo.setId(model.getId());
         vo.setBrandSeries(model.getBrandSeries());
@@ -273,6 +279,7 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
             locationCity = "上海市";
         }
         vo.setLocationCity(locationCity);
+        vo.setStoreId(storeId);
 
         return vo;
     }
@@ -397,6 +404,40 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
                 .collect(Collectors.toMap(
                         CarInstance::getModelId,
                         instance -> storeCityMap.get(instance.getStoreId()),
+                        (existing, replacement) -> existing
+                ));
+    }
+
+    private Map<Long, Long> getStoreIdMap(List<Long> modelIds, String cityName) {
+        if (modelIds == null || modelIds.isEmpty()) {
+            return Map.of();
+        }
+        List<CarInstance> instances = carInstanceMapper.selectList(
+                new LambdaQueryWrapper<CarInstance>().in(CarInstance::getModelId, modelIds)
+        );
+        if (instances.isEmpty()) {
+            return Map.of();
+        }
+
+        if (StringUtils.hasText(cityName)) {
+            List<StoreInfo> stores = storeInfoMapper.selectList(
+                    new LambdaQueryWrapper<StoreInfo>().eq(StoreInfo::getCityName, cityName)
+            );
+            Set<Long> storeIdsInCity = stores.stream().map(StoreInfo::getId).collect(Collectors.toSet());
+            instances = instances.stream()
+                    .sorted((a, b) -> {
+                        boolean aInCity = storeIdsInCity.contains(a.getStoreId());
+                        boolean bInCity = storeIdsInCity.contains(b.getStoreId());
+                        if (aInCity == bInCity) return 0;
+                        return aInCity ? -1 : 1;
+                    })
+                    .toList();
+        }
+
+        return instances.stream()
+                .collect(Collectors.toMap(
+                        CarInstance::getModelId,
+                        CarInstance::getStoreId,
                         (existing, replacement) -> existing
                 ));
     }

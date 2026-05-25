@@ -14,4 +14,5 @@ public class CarModelVo {
     private BigDecimal dailyPrice;
     private String licensePlate;
     private String locationCity;
+    private Long storeId;
 }
