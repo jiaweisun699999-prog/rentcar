@@ -32,10 +32,24 @@
       <el-main class="main-content">
         <div class="result-header">
           <div>
-            <h3>可选车型</h3>
-            <p>{{ selectedStoreLabel }} ｜ {{ searchParams.timeRange[0] }} 至 {{ searchParams.timeRange[1] }}</p>
+            <h3>可选车门店</h3>
+            <div style="display: flex; gap: 15px; margin-top: 10px;">
+              <el-select v-model="searchParams.storeId" @change="fetchAvailableCars" placeholder="请选择车门店" style="width: 250px;">
+                <el-option v-for="store in stores" :key="store.id" :label="formatStoreLabel(store)" :value="store.id" />
+              </el-select>
+              <el-date-picker
+                v-model="searchParams.timeRange"
+                type="datetimerange"
+                range-separator="至"
+                start-placeholder="取车时间"
+                end-placeholder="还车时间"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                @change="fetchAvailableCars"
+                style="width: 350px;"
+              />
+            </div>
           </div>
-          <el-button type="primary" plain @click="router.push('/')">返回修改条件</el-button>
+          <el-button type="primary" plain @click="router.push('/')">返回首页</el-button>
         </div>
 
         <!-- 车辆列表区 -->
@@ -165,13 +179,9 @@ const searchParams = ref({
   timeRange: []
 });
 
-const selectedStoreLabel = computed(() => {
-  const store = stores.value.find(item => String(item.id) === String(searchParams.value.storeId));
-  if (!store) {
-    return '已选门店';
-  }
+const formatStoreLabel = (store) => {
   return `${store.merchantName || ''}${store.address ? ' - ' + store.address : ''}`;
-});
+};
 
 // 加载门店下拉列表
 const loadStores = async () => {
@@ -301,7 +311,8 @@ const handleCommand = (command) => {
 };
 
 onMounted(() => {
-  searchParams.value.storeId = route.value.query.storeId || '';
+  const qStoreId = route.value.query.storeId;
+  searchParams.value.storeId = qStoreId ? Number(qStoreId) : '';
   searchParams.value.timeRange = [route.value.query.startTime || '', route.value.query.endTime || ''];
   loadStores();
   fetchAvailableCars();
