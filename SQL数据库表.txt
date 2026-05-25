@@ -145,3 +145,7 @@ CREATE TABLE `payment_record` (
   PRIMARY KEY (`id`),
   KEY `idx_order_no` (`order_no`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='支付与押金流水表';
+
+
+ALTER TABLE sys_user ADD COLUMN username VARCHAR(50) DEFAULT NULL COMMENT '用户名' AFTER password;
+ALTER TABLE sys_user ADD COLUMN status INT DEFAULT 1 COMMENT '状态: 1正常 0禁用' AFTER username;
