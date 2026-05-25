@@ -297,10 +297,14 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { User, Location, Van, Tickets, Money } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import request from '../utils/request';
+import { useUserStore } from '../store';
 
+const router = useRouter();
+const userStore = useUserStore();
 const activeIndex = ref('1');
 const menuNames = {
   '1': '用户管理', '2': '门店管理', '3': '车型与车辆管理', '4': '订单管理', '5': '财务流水'
@@ -336,6 +340,11 @@ const handleSelect = (key) => {
 };
 
 const loadData = () => {
+  if (!userStore.token) {
+    ElMessage.warning('请先登录后访问管理后台');
+    router.push('/login');
+    return;
+  }
   if (activeIndex.value === '1') fetchUsers();
   if (activeIndex.value === '2') fetchStores();
   if (activeIndex.value === '3') fetchCars();
