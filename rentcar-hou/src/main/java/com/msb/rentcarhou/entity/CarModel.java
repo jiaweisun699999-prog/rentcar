@@ -6,26 +6,17 @@ import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.util.Date;
 
 @Data
-@TableName("car_order")
-public class CarOrder {
+@TableName("car_model")
+public class CarModel {
     @TableId(type = IdType.AUTO)
     private Long id;
-    private String orderNo;
-    private Long userId;
-    private Long carId;
-    private Long pickupStoreId;
-    private Long dropoffStoreId;
-    private Date startTime;
-    private Date endTime;
-    private BigDecimal totalAmount;
-    private BigDecimal rentFee;
-    private BigDecimal basicInsuranceFee;
-    private BigDecimal handlingFee;
-    private Integer status;
+    private String brandSeries;
+    private String carType;
+    private String seatsDoors;
+    private String mainImage;
     private Date createTime;
     private Date updateTime;
 

@@ -10,21 +10,14 @@ import java.math.BigDecimal;
 import java.util.Date;
 
 @Data
-@TableName("car_order")
-public class CarOrder {
+@TableName("car_instance")
+public class CarInstance {
     @TableId(type = IdType.AUTO)
     private Long id;
-    private String orderNo;
-    private Long userId;
-    private Long carId;
-    private Long pickupStoreId;
-    private Long dropoffStoreId;
-    private Date startTime;
-    private Date endTime;
-    private BigDecimal totalAmount;
-    private BigDecimal rentFee;
-    private BigDecimal basicInsuranceFee;
-    private BigDecimal handlingFee;
+    private Long modelId;
+    private Long storeId;
+    private String plateNumber;
+    private BigDecimal dailyRentPrice;
     private Integer status;
     private Date createTime;
     private Date updateTime;

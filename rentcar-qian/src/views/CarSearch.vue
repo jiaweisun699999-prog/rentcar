@@ -30,32 +30,16 @@
       </el-header>
 
       <el-main class="main-content">
-        <!-- 搜索条件区 -->
-        <el-card class="filter-card">
-          <el-form :inline="true" :model="searchParams">
-            <el-form-item label="取还车门店">
-              <el-select v-model="searchParams.storeId" placeholder="请选择门店" style="width: 250px;">
-                <el-option v-for="store in stores" :key="store.id" :label="store.merchantName + ' - ' + store.address" :value="store.id"></el-option>
-              </el-select>
-            </el-form-item>
-            <el-form-item label="用车时间">
-              <el-date-picker
-                v-model="searchParams.timeRange"
-                type="datetimerange"
-                range-separator="至"
-                start-placeholder="取车时间"
-                end-placeholder="还车时间"
-                value-format="YYYY-MM-DD HH:mm:ss"
-              />
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" @click="fetchAvailableCars" :loading="loading">查找可用车辆</el-button>
-            </el-form-item>
-          </el-form>
-        </el-card>
+        <div class="result-header">
+          <div>
+            <h3>可选车型</h3>
+            <p>{{ selectedStoreLabel }} ｜ {{ searchParams.timeRange[0] }} 至 {{ searchParams.timeRange[1] }}</p>
+          </div>
+          <el-button type="primary" plain @click="router.push('/')">返回修改条件</el-button>
+        </div>
 
         <!-- 车辆列表区 -->
-        <div class="car-list">
+        <div class="car-list" v-loading="loading">
           <el-row :gutter="20" v-if="carList.length > 0">
             <el-col :span="6" v-for="car in carList" :key="car.id">
               <el-card shadow="hover" class="car-card">
@@ -73,6 +57,18 @@
             </el-col>
           </el-row>
           <el-empty description="该时间段暂无可租车型，请尝试更改条件" v-else style="margin-top: 50px;"></el-empty>
+          <div class="pagination-wrapper" v-if="total > 0">
+            <el-pagination
+              v-model:current-page="pagination.page"
+              v-model:page-size="pagination.pageSize"
+              background
+              layout="total, sizes, prev, pager, next, jumper"
+              :page-sizes="[4, 8, 12, 16]"
+              :total="total"
+              @size-change="handleSizeChange"
+              @current-change="fetchAvailableCars"
+            />
+          </div>
         </div>
       </el-main>
 
@@ -122,16 +118,30 @@ import { ElMessage } from 'element-plus';
 import request from '../utils/request';
 
 const router = useRouter();
+const route = router.currentRoute;
 const userStore = useUserStore();
 const isLoggedIn = computed(() => !!userStore.token);
 
 const loading = ref(false);
 const stores = ref([]);
 const carList = ref([]);
+const total = ref(0);
+const pagination = ref({
+  page: 1,
+  pageSize: 8
+});
 
 const searchParams = ref({
   storeId: '',
   timeRange: []
+});
+
+const selectedStoreLabel = computed(() => {
+  const store = stores.value.find(item => String(item.id) === String(searchParams.value.storeId));
+  if (!store) {
+    return '已选门店';
+  }
+  return `${store.merchantName || ''}${store.address ? ' - ' + store.address : ''}`;
 });
 
 // 加载门店下拉列表
@@ -139,9 +149,6 @@ const loadStores = async () => {
   try {
     const res = await request.get('/store/list', { params: { page: 1, pageSize: 100 } });
     stores.value = res.records || [];
-    if (stores.value.length > 0 && !searchParams.value.storeId) {
-      searchParams.value.storeId = stores.value[0].id;
-    }
   } catch (error) {
     console.error(error);
   }
@@ -155,21 +162,28 @@ const fetchAvailableCars = async () => {
   }
   loading.value = true;
   try {
-    const res = await request.get('/car/model/list', { 
-      params: { 
+    const res = await request.get('/car/model/list', {
+      params: {
         storeId: searchParams.value.storeId,
         startTime: searchParams.value.timeRange[0],
         endTime: searchParams.value.timeRange[1],
-        page: 1, 
-        pageSize: 100 
-      } 
+        page: pagination.value.page,
+        pageSize: pagination.value.pageSize
+      }
     });
     carList.value = res.records || [];
+    total.value = res.total || 0;
   } catch (error) {
     console.error(error);
   } finally {
     loading.value = false;
   }
+};
+
+const handleSizeChange = (size) => {
+  pagination.value.pageSize = size;
+  pagination.value.page = 1;
+  fetchAvailableCars();
 };
 
 // 预订与弹窗逻辑
@@ -232,20 +246,10 @@ const handleCommand = (command) => {
 };
 
 onMounted(() => {
+  searchParams.value.storeId = route.value.query.storeId || '';
+  searchParams.value.timeRange = [route.value.query.startTime || '', route.value.query.endTime || ''];
   loadStores();
-  // 默认填充近两天的日期
-  const start = new Date();
-  start.setHours(10, 0, 0, 0);
-  const end = new Date();
-  end.setDate(end.getDate() + 2);
-  end.setHours(10, 0, 0, 0);
-  
-  const formatDate = (date) => {
-    const pad = (n) => n < 10 ? '0' + n : n;
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
-  };
-  
-  searchParams.value.timeRange = [formatDate(start), formatDate(end)];
+  fetchAvailableCars();
 });
 </script>
 
@@ -276,12 +280,32 @@ onMounted(() => {
 .main-content {
   padding: 20px 50px;
 }
-.filter-card {
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
+  padding: 20px;
   margin-bottom: 20px;
+}
+.result-header h3 {
+  margin: 0 0 8px 0;
+  color: #303133;
+}
+.result-header p {
+  margin: 0;
+  color: #606266;
 }
 .car-card {
   border-radius: 8px;
   margin-bottom: 20px;
+}
+.pagination-wrapper {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0 10px;
 }
 .car-img-placeholder {
   width: 100%;

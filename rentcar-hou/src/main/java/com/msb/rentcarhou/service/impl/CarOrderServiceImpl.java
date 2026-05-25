@@ -14,14 +14,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.format.DateTimeFormatter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class CarOrderServiceImpl extends ServiceImpl<CarOrderMapper, CarOrder> implements CarOrderService {
 
-    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final String DATE_TIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -46,11 +47,11 @@ public class CarOrderServiceImpl extends ServiceImpl<CarOrderMapper, CarOrder> i
             vo.setOrderId(order.getOrderNo());
             vo.setUserId(order.getUserId());
             vo.setBrandSeries("悟空精选车型");
-            vo.setStartDate(order.getStartTime() != null ? order.getStartTime().format(FORMATTER) : null);
-            vo.setEndDate(order.getEndTime() != null ? order.getEndTime().format(FORMATTER) : null);
+            vo.setStartDate(formatDate(order.getStartTime()));
+            vo.setEndDate(formatDate(order.getEndTime()));
             vo.setTotalAmount(order.getTotalAmount());
             vo.setStatus(order.getStatus());
-            vo.setCreateTime(order.getCreateTime() != null ? order.getCreateTime().format(FORMATTER) : null);
+            vo.setCreateTime(formatDate(order.getCreateTime()));
             return vo;
         }).collect(Collectors.toList());
 
@@ -82,14 +83,14 @@ public class CarOrderServiceImpl extends ServiceImpl<CarOrderMapper, CarOrder> i
         OrderDetailVo vo = new OrderDetailVo();
         vo.setOrderNo(order.getOrderNo());
         vo.setBrandSeries("悟空精选车型");
-        vo.setStartTime(order.getStartTime() != null ? order.getStartTime().format(FORMATTER) : null);
-        vo.setEndTime(order.getEndTime() != null ? order.getEndTime().format(FORMATTER) : null);
+        vo.setStartTime(formatDate(order.getStartTime()));
+        vo.setEndTime(formatDate(order.getEndTime()));
         vo.setTotalAmount(order.getTotalAmount());
         vo.setRentFee(order.getRentFee());
         vo.setBasicInsuranceFee(order.getBasicInsuranceFee());
         vo.setHandlingFee(order.getHandlingFee());
         vo.setStatus(order.getStatus());
-        vo.setCreateTime(order.getCreateTime() != null ? order.getCreateTime().format(FORMATTER) : null);
+        vo.setCreateTime(formatDate(order.getCreateTime()));
         
         String pickupLocation = "未知";
         String dropoffLocation = "未知";
@@ -104,5 +105,9 @@ public class CarOrderServiceImpl extends ServiceImpl<CarOrderMapper, CarOrder> i
         vo.setDropoffLocation(dropoffLocation);
         vo.setCarId(order.getCarId());
         return vo;
+    }
+
+    private String formatDate(Date date) {
+        return date == null ? null : new SimpleDateFormat(DATE_TIME_PATTERN).format(date);
     }
 }
