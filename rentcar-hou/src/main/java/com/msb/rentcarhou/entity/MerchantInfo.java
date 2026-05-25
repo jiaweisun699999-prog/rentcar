@@ -14,7 +14,6 @@ import java.util.Date;
 public class MerchantInfo {
     @TableId(type = IdType.AUTO)
     private Long id;
-
     private String merchantName;
     private BigDecimal serviceScore;
     private Date createTime;

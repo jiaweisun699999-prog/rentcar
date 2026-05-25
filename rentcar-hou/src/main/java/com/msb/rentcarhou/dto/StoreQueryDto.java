@@ -4,7 +4,7 @@ import lombok.Data;
 
 @Data
 public class StoreQueryDto {
-    private Integer page;
-    private Integer pageSize;
+    private Integer page = 1;
+    private Integer pageSize = 10;
     private String cityName;
 }

@@ -23,6 +23,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/user/login",     // 放行登录
                         "/api/user/register",  // 放行注册
                         "/api/car/recommend",  // 放行首页推荐查询
+                        "/api/car/model/list",
                         "/api/store/list",     // 放行门店列表查询
                         "/api/upload",         // 放行文件上传(如果需要外部可访问)
                         "/error"               // 放行框架默认错误路径

@@ -13,7 +13,6 @@ import java.util.Date;
 public class StoreInfo {
     @TableId(type = IdType.AUTO)
     private Long id;
-
     private Long merchantId;
     private String cityName;
     private String address;
