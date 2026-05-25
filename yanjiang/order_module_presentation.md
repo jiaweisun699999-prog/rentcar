@@ -24,131 +24,94 @@
 
 ## 三、前后端数据流转全链路深度剖析：一个请求的生命周期 (附核心代码)
 
-接下来，我将以“查询订单列表”为例，为大家详细演示一次完整的请求生命周期是如何在前后端之间流转的。我们将整个过程分为五个核心步骤，大家可以结合屏幕上的核心代码来理解。
+接下来，为了让大家最直观地感受到我们系统的数据流转，我将以最核心的**“提交预约订单 (Create Order)”**为例，为大家详细拆解一次完整的请求生命周期。我们将整个过程分为五个核心步骤，大家可以结合屏幕上的核心代码来理解。
 
-### 第一步：前端发起请求 (Vue3 -> Axios)
-首先是第一步，前端发起请求。当用户进入“我的订单”页面时，Vue3 的 `onMounted` 生命周期钩子会被触发。大家可以看到如下代码，前端会调用 `fetchOrders` 方法，将页码等参数准备好后，通过 Axios 向后端发起 GET 请求：
+### 第一步：前端收集数据并组装请求 (Vue3 -> Axios)
+首先，当用户在前端选好取还车时间、门店并点击“预订”按钮时，Vue3 会将这些用户的意图收集起来，封装进 `OrderCreateDto` 数据传输对象中。随后，通过 Axios 发起 POST 请求，将这段 JSON 数据发送给后端：
 ```javascript
-// 前端: src/views/Orders.vue
-const fetchOrders = async () => {
-  loading.value = true;
-  try {
-    // 1. 组装参数：页码与每页条数
-    // 2. 发起 GET 请求，Axios 会将参数拼接为 ?page=1&pageSize=20
-    const res = await request.get('/order/list', { params: { page: 1, pageSize: 20 } });
-    
-    // 获取到后端数据后，赋值给响应式变量
-    orderList.value = res.records || [];
-  } catch (error) { ... }
+// 前端发起请求
+const handleBook = async () => {
+  const reqData = {
+    carModelId: 1, 
+    pickupStoreId: 1, 
+    dropoffStoreId: 1,
+    startTime: "2026-06-01 10:00",
+    endTime: "2026-06-03 10:00"
+  };
+  // 发起 POST 请求，数据通过请求体 (Body) 传输
+  await request.post('/order/create', reqData);
 };
 ```
 
-### 第二步：后端 Controller 接收与参数绑定 (Spring Boot)
-第二步，请求到达后端。Tomcat 接收到请求后，Spring Boot 框架会根据 `@GetMapping` 注解，精准匹配到我们的 `OrderController`。在这里，框架会自动将 URL 上的参数映射并封装到我们定义的 `OrderQueryDto` 对象中。Controller 在这里起到了一个“交通警察”的作用，它不处理复杂的逻辑，而是直接将 DTO 分发给下一层的 Service 去处理：
+### 第二步：后端 Controller 接收与路由分发 (Spring Boot)
+请求跨越网络来到后端 Tomcat 服务器。Spring Boot 框架强大的路由机制，会根据 `@PostMapping` 注解，精准地将请求派发给 `OrderController` 的 `create` 方法。
+在这里，使用 `@RequestBody` 注解，框架自动把 JSON 反序列化成了 Java 里的 `OrderCreateDto` 对象。Controller 在这里就像一个交通指挥员，它不包揽脏活累活，而是立刻把 DTO 递交给 Service 层处理：
 ```java
 // 后端: OrderController.java
-@RestController
-@RequestMapping("/api")
-public class OrderController {
-    
-    @Autowired
-    private CarOrderService carOrderService;
-
-    // 接收 GET 请求，Spring 自动将 URL 参数映射给 OrderQueryDto dto
-    @GetMapping("/order/list")
-    public Result<Page<OrderListVo>> list(OrderQueryDto dto) {
-        // Controller 直接将 DTO 丢给 Service 处理
-        Page<OrderListVo> page = carOrderService.getOrderPage(dto);
-        // 将 Service 返回的结果包装成统一样式 Result.success 抛回给前端
-        return Result.success(page);
-    }
+@PostMapping("/order/create")
+public Result<String> create(@RequestBody OrderCreateDto dto) {
+    // 将参数丢给 Service 层去执行真正的核心业务
+    String orderNo = carOrderService.createOrder(dto);
+    return Result.success(orderNo);
 }
 ```
 
-### 第三步：Service 层构造 SQL 与执行 (MyBatis-Plus 的精妙之处)
-第三步，也是整个流程最核心的一步，Service 层执行业务逻辑并与数据库交互。
+### 第三步：Service 层的核心业务大拼图 (MyBatis-Plus + JdbcTemplate)
+第三步，也是整个流程技术含量最高的一步。订单 Service 接收到参数后，需要完成多项任务：验证登录、计算金额、匹配车辆、并最终保存订单。
 
-讲到这里，老师和同学们可能会产生一个疑问：**“为什么在代码里没有看到传统的 `Mapper.xml` 文件去写 `<select>` 标签，而是直接在 `ServiceImpl` 里就把查询执行了？”**
+讲到这里，老师和同学们可能会产生一个疑问：**“传统开发中，数据库操作都要去写厚厚的 `Mapper.xml` 文件，为什么在这里一行 XML 代码都没看到，直接就在 `ServiceImpl` 里执行了保存和查询呢？”**
 
-这正是我们项目采用 **MyBatis-Plus** 框架的核心优势所在。MyBatis-Plus 是对传统 MyBatis 的强大增强，它在内部自动帮我们将 Java 的实体类（`CarOrder`）和数据库表绑定了起来，并内置了大量通用的单表 CRUD 操作。
-因此，我们彻底告别了手写繁琐 XML SQL 的时代。我们在 `CarOrderServiceImpl` 中是这样做的：
-1. 首先，通过 `UserContext` 获取当前登录用户的 ID。这是一个非常重要的安全隔离设计，从根本上杜绝了越权查询的安全隐患。
-2. 接着，我们实例化了一个 `LambdaQueryWrapper`。大家可以把它理解为一个**“面向对象的 SQL 拼装引擎”**。我们在 Java 代码里调用的方法，底层会自动被它翻译成对应的 SQL 语法（例如 `.eq` 就会被翻译为 `WHERE ... = ?`）。
-3. 最后，我们直接调用 MyBatis-Plus 提供的 `this.page(page, wrapper)` 方法。框架会在运行的瞬间，将刚才收集到的所有条件，组装成一条完整、安全的原生 SQL 语句，并自动进行物理分页计算，然后发往 MySQL 数据库。
+这正是我们项目在持久层设计的精妙之处——我们打出了一套**“MyBatis-Plus + JdbcTemplate”**的组合拳：
+1. **告别繁琐的 XML (MyBatis-Plus)**：框架在底层帮我们把 `CarOrder` 实体类和 `car_order` 物理表自动绑定。我们只需要像操作对象一样 `new CarOrder()`，然后调用 `this.save(order)`，框架就会在运行的瞬间自动生成并执行 `INSERT INTO` 原生 SQL。
+2. **优雅的跨模块查询 (JdbcTemplate)**：为了在订单生成时挑选一辆空闲的实体车，我们直接注入了原生的 `JdbcTemplate`，用极其轻量的一行 SQL 语句完成了跨模块的数据交互。既拿到了所需的车辆 ID，又完全没有去碰其他同学写的库存模块代码，做到了教科书级别的模块解耦！
 
-具体的代码实现如下：
 ```java
 // 后端: CarOrderServiceImpl.java
 @Override
-public Page<OrderListVo> getOrderPage(OrderQueryDto dto) {
-    // 1. 数据隔离：获取当前线程的登录用户ID，防止越权查阅
-    Long currentUserId = UserContext.getUserId();
+public String createOrder(OrderCreateDto dto) {
+    // 1. 获取当前登录用户ID，做好安全防范
+    Long userId = UserContext.getUserId();
     
-    // 实例化面向对象的 SQL 拼接器
-    LambdaQueryWrapper<CarOrder> wrapper = new LambdaQueryWrapper<>();
-    if (currentUserId != null) {
-        // 底层自动翻译为: WHERE user_id = ?
-        wrapper.eq(CarOrder::getUserId, currentUserId); 
-    }
+    // 2. 调用计费预演方法，算出本次订单的总金额、租金、押金等
+    OrderPreviewVo preview = previewOrder(dto);
     
-    // 2. 动态参数：前端传了 status 才加入筛选条件
-    if (dto.getStatus() != null) {
-        // 底层自动追加: AND status = ?
-        wrapper.eq(CarOrder::getStatus, dto.getStatus()); 
-    }
-    // 底层自动追加: ORDER BY create_time DESC
-    wrapper.orderByDesc(CarOrder::getCreateTime); 
+    // 3. 跨模块解耦查询：利用 JdbcTemplate 原生 SQL，找出一台空闲的实体车
+    Long carId = jdbcTemplate.queryForObject(
+        "SELECT id FROM car_instance WHERE model_id = ? AND store_id = ? AND status = 0 LIMIT 1", 
+        Long.class, dto.getCarModelId(), dto.getPickupStoreId()
+    );
 
-    // 3. 执行查询：无需 Mapper.xml，直接调用 MyBatis-Plus 的内置分页查询方法
-    Page<CarOrder> page = new Page<>(dto.getPage(), dto.getPageSize());
-    this.page(page, wrapper); 
+    // 4. 组装实体类并保存
+    CarOrder order = new CarOrder();
+    order.setOrderNo("ORD" + System.currentTimeMillis()); // 生成唯一订单号
+    order.setUserId(userId);
+    order.setCarId(carId);
+    order.setTotalAmount(preview.getTotalAmount());
+    order.setStatus(0); // 0代表待支付状态
     
-    // 至此，框架在底层真实生成的 SQL 类似于：
-    // SELECT * FROM car_order WHERE user_id=? AND status=? ORDER BY create_time DESC LIMIT ?, ?
-```
-
-### 第四步：数据脱敏与转换 (Entity -> VO)
-第四步，是对查询到的数据进行脱敏与转换。大家知道，数据库直接返回的 `CarOrder` 原生实体类包含了很多不应该暴露给前端的敏感信息和冗余字段。因此，我们通过 Java 8 的 Stream 流，将实体类精确映射为专为视图层设计的 `OrderListVo` 对象。我们在这里统一了时间格式，并且只对外暴露必要的业务字段：
-```java
-    // 4. 数据转换：遍历原生 Entity 的 records
-    List<OrderListVo> voList = page.getRecords().stream().map(order -> {
-        OrderListVo vo = new OrderListVo();
-        // 抹平差异：前端需要 orderId，而后端表里叫 orderNo
-        vo.setOrderId(order.getOrderNo());
-        // 直接读取总金额，安全且精确
-        vo.setTotalAmount(order.getTotalAmount());
-        // 将 LocalDateTime 格式化为前端好处理的 String ("yyyy-MM-dd HH:mm:ss")
-        vo.setCreateTime(order.getCreateTime() != null ? order.getCreateTime().format(FORMATTER) : null);
-        vo.setStatus(order.getStatus());
-        vo.setBrandSeries("悟空精选车型"); // 某些业务要求默认赋值
-        return vo;
-    }).collect(Collectors.toList());
-
-    // 5. 重新组装分页对象返回
-    Page<OrderListVo> voPage = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
-    voPage.setRecords(voList);
-    return voPage;
+    // 5. 核心：调用 MyBatis-Plus 内置方法，自动生成 INSERT SQL 并落盘
+    this.save(order);
+    
+    return order.getOrderNo();
 }
 ```
 
-### 第五步：前端接收、解构与响应式渲染 (Axios -> Element Plus)
-最后一步，后端将转换好的分页数据通过 `Result` 统一响应体，序列化为 JSON 格式返回给前端：
+### 第四步：数据落盘与 Result 统一响应包装
+当 `this.save(order)` 执行完毕，订单数据已经安稳地躺在 MySQL 的硬盘里了。Service 将刚生成的“订单号”返回给 Controller。
+Controller 再将其包裹在一层统一定义的 `Result` 对象中。这层包裹非常重要，它保证了无论后端发生什么，前端收到的永远是带有 `code`（状态码）、`message`（提示信息）和 `data`（核心业务数据）的标准化快递盒。
+
+### 第五步：前端接收回调与页面流转 (Axios -> Element Plus)
+最后一步，标准化封装的 JSON 回到前端：
 ```json
 {
   "code": 200,
   "message": "success",
-  "data": { "records": [ { "orderId": "ORD2026...", "totalAmount": 980.00 } ], "total": 1 }
+  "data": "ORD1700000000000"
 }
 ```
-此时我们的视线回到前端。Vue3 接收到这个 JSON 响应后，将数据解构并赋值给响应式变量 `orderList`：
-```javascript
-// 前端: src/views/Orders.vue
-const orderList = ref([]); // Vue3 响应式数组
+Vue3 的 Axios 拦截器会先接收并解构这个响应。前端一旦拿到这个代表成功的 JSON 数据，页面就会弹出一个漂亮的绿色提示框“预订成功！”，然后通过 Vue Router 的路由引擎，丝滑地将用户的页面跳转到“我的订单”列表去进行下一步的支付操作。
 
-// 解构出 data.records 并赋值给 orderList
-orderList.value = res.records || []; 
-```
-得益于 Vue 强大的响应式机制，当 `orderList` 发生变化时，底层的 `<el-table>` 组件会立刻捕获到数据的更新，瞬间触发虚拟 DOM 的重新渲染，最终将整洁美观的订单列表呈现到用户的屏幕上。至此，一个完整的请求生命周期顺利闭环。
+至此，一个从前端点击、网络传输、参数绑定、核心业务校验、跨表交互、SQL 落盘，再到前端页面重新渲染跳转的**完整生命周期，顺利闭环！**
 
 ---
 
@@ -163,10 +126,33 @@ orderList.value = res.records || [];
 
 ---
 
-## 五、总结与复盘
+## 五、进阶演练：预约下单与动态库存解耦
+
+在订单展示之后，我们还面临了一个非常核心的场景——**预约选车与下单**。
+在不能直接修改其他小组“库存/车辆模块”代码的硬性前提下，我们完成了一次巧妙的模块解耦：
+1. **计费预演 (`previewOrder`)**：前端用户选好起止时间和车型后，我们通过 `JdbcTemplate` 悄悄跨模块查询 `car_instance` 表，拿到该车型的每日租金。然后把租金、保险费、手续费加总，以 `OrderPreviewVo` 的形式返回给前端展示，让用户能直观看到费用明细。
+2. **生成订单 (`createOrder`)**：用户确认下单时，我们依然使用原生 SQL 精准挑选一台满足条件且状态为空闲的实体车辆ID。随后组装好 `CarOrder` 存入数据库，生成全局唯一的业务订单号，将用户的订车意愿转化为真实的底层数据。
+
+---
+
+## 六、生命周期流转：状态机的核心枢纽
+
+一个完整的订单必定要有生命，也就是它的**状态流转**：从“待支付”到“待取车”，再到“租赁中”、“待结算”，直至“已完成”。
+在开发中，我们专门设计了 `PUT /api/order/status/update` 这一中枢接口：
+- **管理员确认交车**：订单状态从“待取车”变更为“租赁中”。
+- **租客一键还车**：租客在前台点击“还车”后，状态扭转至“待结算”。
+- **管理员完成结算**：最终变更为“已完成”，订单完美收官。
+
+这里最大的亮点在于：我们在改变订单状态的同时，顺带用一行简单的原生 SQL 默默更新了对应车辆的库存状态（出租或空闲）。**我们既实现了车辆与订单流转的高度联动，又坚守了代码边界，完全没有修改库存模块的任何 Java 源码。**
+
+---
+
+## 七、总结与复盘
 
 整个开发和调试过程，就是一个“契约”与“管道”的建设过程：
 - **契约**：指的是前端和后端约定好的 JSON 格式，以及后端和数据库约定好的表结构映射。
 - **管道**：指的是 **数据库 -> Entity -> Mapper -> Service -> VO -> Controller -> 前端组件** 这一条清晰的数据流转管线。
 
-在这个“仅改动订单模块”的绝对原则下，我们既实现了新功能的独立开发（包括核心列表展示、数据隔离鉴权、以及优雅的详情展示弹窗），也完美契合了既有框架的规范。谢谢大家的聆听！
+在这个“仅改动订单模块”的绝对原则下，我们不仅打通了从列表查询、详情渲染到预约下单、闭环流转的全链路，还活用了 MyBatis-Plus 和 JdbcTemplate 的组合拳。既满足了复杂的业务需求，又捍卫了系统架构的边界感。
+
+谢谢大家的聆听！

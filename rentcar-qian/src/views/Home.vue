@@ -168,6 +168,15 @@ const cities = computed(() => {
 const handleCityChange = () => {
   pagination.value.page = 1;
   loadRecommendCars();
+  
+  if (selectedCity.value) {
+    const storeInCity = stores.value.find(s => s.cityName === selectedCity.value);
+    if (storeInCity) {
+      searchParams.value.storeId = storeInCity.id;
+    }
+  } else if (stores.value.length > 0) {
+    searchParams.value.storeId = stores.value[0].id;
+  }
 };
 
 const pagination = ref({
