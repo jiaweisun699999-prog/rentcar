@@ -1,0 +1,228 @@
+package com.msb.rentcarhou.service.impl;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.msb.rentcarhou.dto.CarModelAddDto;
+import com.msb.rentcarhou.dto.CarModelQueryDto;
+import com.msb.rentcarhou.entity.CarInstance;
+import com.msb.rentcarhou.entity.CarModel;
+import com.msb.rentcarhou.entity.CarOrder;
+import com.msb.rentcarhou.mapper.CarInstanceMapper;
+import com.msb.rentcarhou.mapper.CarModelMapper;
+import com.msb.rentcarhou.mapper.CarOrderMapper;
+import com.msb.rentcarhou.service.CarService;
+import com.msb.rentcarhou.vo.CarModelListVo;
+import com.msb.rentcarhou.vo.CarModelVo;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.math.BigDecimal;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implements CarService {
+
+    private static final int MODEL_STATUS_ON_SALE = 1;
+    private static final int CAR_STATUS_PREPARING = 1;
+    private static final int CAR_STATUS_MAINTENANCE = 3;
+    private static final int ORDER_STATUS_FINISHED = 4;
+    private static final int ORDER_STATUS_CANCELLED = 5;
+
+    private final CarInstanceMapper carInstanceMapper;
+    private final CarOrderMapper carOrderMapper;
+
+    @Override
+    public Page<CarModelListVo> getModelList(CarModelQueryDto queryDto) {
+        int pageNum = queryDto == null || queryDto.getPage() == null || queryDto.getPage() < 1 ? 1 : queryDto.getPage();
+        int pageSize = queryDto == null || queryDto.getPageSize() == null || queryDto.getPageSize() < 1 ? 10 : queryDto.getPageSize();
+
+        if (hasAvailableQuery(queryDto)) {
+            return getAvailableModelPage(queryDto, pageNum, pageSize);
+        }
+
+        LambdaQueryWrapper<CarModel> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.orderByDesc(CarModel::getCreateTime);
+
+        Page<CarModel> modelPage = this.page(new Page<>(pageNum, pageSize), queryWrapper);
+        List<Long> modelIds = modelPage.getRecords().stream().map(CarModel::getId).toList();
+        Map<Long, BigDecimal> dailyPriceMap = getMinDailyPriceMap(modelIds);
+        List<CarModelListVo> records = modelPage.getRecords().stream()
+                .map(model -> buildModelListVo(model, dailyPriceMap.get(model.getId())))
+                .toList();
+
+        Page<CarModelListVo> resultPage = new Page<>(modelPage.getCurrent(), modelPage.getSize(), modelPage.getTotal());
+        resultPage.setRecords(records);
+        return resultPage;
+    }
+
+    @Override
+    public List<CarModelVo> getRecommendModels() {
+        LambdaQueryWrapper<CarModel> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.orderByDesc(CarModel::getCreateTime).last("limit 8");
+        List<CarModel> models = this.list(queryWrapper);
+        List<Long> modelIds = models.stream().map(CarModel::getId).toList();
+        Map<Long, BigDecimal> dailyPriceMap = getMinDailyPriceMap(modelIds);
+        return models.stream().map(model -> buildRecommendVo(model, dailyPriceMap.get(model.getId()))).toList();
+    }
+
+    @Override
+    public void addModel(CarModelAddDto addDto) {
+        checkModelAddParams(addDto);
+        CarModel model = new CarModel();
+        model.setBrandSeries(addDto.getBrandSeries());
+        model.setCarType(addDto.getCarType());
+        model.setSeatsDoors(addDto.getSeatsDoors());
+        model.setMainImage(addDto.getMainImage());
+        this.save(model);
+    }
+
+    @Override
+    public void deleteModel(Long id) {
+        if (id == null) {
+            throw new RuntimeException("车型ID不能为空");
+        }
+        this.removeById(id);
+    }
+
+    private boolean hasAvailableQuery(CarModelQueryDto queryDto) {
+        return queryDto != null
+                && queryDto.getStoreId() != null
+                && StringUtils.hasText(queryDto.getStartTime())
+                && StringUtils.hasText(queryDto.getEndTime());
+    }
+
+    private Page<CarModelListVo> getAvailableModelPage(CarModelQueryDto queryDto, int pageNum, int pageSize) {
+        Date startTime = parseDateTime(queryDto.getStartTime(), "起租时间格式应为yyyy-MM-dd HH:mm:ss");
+        Date endTime = parseDateTime(queryDto.getEndTime(), "还车时间格式应为yyyy-MM-dd HH:mm:ss");
+        if (!startTime.before(endTime)) {
+            throw new RuntimeException("还车时间必须晚于起租时间");
+        }
+
+        List<CarInstance> availableInstances = getAvailableInstances(queryDto.getStoreId(), startTime, endTime);
+        if (availableInstances.isEmpty()) {
+            return new Page<>(pageNum, pageSize, 0);
+        }
+
+        Map<Long, List<CarInstance>> instanceMap = availableInstances.stream().collect(Collectors.groupingBy(CarInstance::getModelId));
+        List<CarModelListVo> models = this.listByIds(instanceMap.keySet()).stream()
+                .sorted(Comparator.comparing(CarModel::getCreateTime, Comparator.nullsLast(Date::compareTo)).reversed())
+                .map(model -> buildModelListVo(model, getMinDailyPrice(instanceMap.get(model.getId()))))
+                .toList();
+
+        int total = models.size();
+        int fromIndex = Math.min((pageNum - 1) * pageSize, total);
+        int toIndex = Math.min(fromIndex + pageSize, total);
+        Page<CarModelListVo> resultPage = new Page<>(pageNum, pageSize, total);
+        resultPage.setRecords(models.subList(fromIndex, toIndex));
+        return resultPage;
+    }
+
+    private List<CarInstance> getAvailableInstances(Long storeId, Date startTime, Date endTime) {
+        LambdaQueryWrapper<CarInstance> instanceWrapper = new LambdaQueryWrapper<>();
+        instanceWrapper.eq(CarInstance::getStoreId, storeId)
+                .notIn(CarInstance::getStatus, CAR_STATUS_PREPARING, CAR_STATUS_MAINTENANCE);
+        List<CarInstance> instances = carInstanceMapper.selectList(instanceWrapper);
+        if (instances.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> carIds = instances.stream().map(CarInstance::getId).collect(Collectors.toSet());
+        Set<Long> occupiedCarIds = findOccupiedCarIds(carIds, startTime, endTime);
+        return instances.stream().filter(instance -> !occupiedCarIds.contains(instance.getId())).toList();
+    }
+
+    private Set<Long> findOccupiedCarIds(Set<Long> carIds, Date startTime, Date endTime) {
+        if (carIds == null || carIds.isEmpty()) {
+            return Set.of();
+        }
+        LambdaQueryWrapper<CarOrder> orderWrapper = new LambdaQueryWrapper<>();
+        orderWrapper.in(CarOrder::getCarId, carIds)
+                .notIn(CarOrder::getStatus, ORDER_STATUS_FINISHED, ORDER_STATUS_CANCELLED)
+                .lt(CarOrder::getStartTime, endTime)
+                .gt(CarOrder::getEndTime, startTime);
+        return carOrderMapper.selectList(orderWrapper).stream()
+                .map(CarOrder::getCarId)
+                .collect(Collectors.toCollection(HashSet::new));
+    }
+
+    private Map<Long, BigDecimal> getMinDailyPriceMap(List<Long> modelIds) {
+        if (modelIds == null || modelIds.isEmpty()) {
+            return Map.of();
+        }
+        List<CarInstance> instances = carInstanceMapper.selectList(new LambdaQueryWrapper<CarInstance>().in(CarInstance::getModelId, modelIds));
+        return instances.stream()
+                .filter(instance -> instance.getDailyRentPrice() != null)
+                .collect(Collectors.groupingBy(CarInstance::getModelId, Collectors.collectingAndThen(Collectors.toList(), this::getMinDailyPrice)));
+    }
+
+    private CarModelListVo buildModelListVo(CarModel model, BigDecimal dailyPrice) {
+        CarModelListVo vo = new CarModelListVo();
+        vo.setId(model.getId());
+        vo.setBrandSeries(model.getBrandSeries());
+        vo.setCarType(model.getCarType());
+        vo.setSeatsDoors(model.getSeatsDoors());
+        vo.setMainImage(model.getMainImage());
+        vo.setDailyPrice(dailyPrice == null ? BigDecimal.ZERO : dailyPrice);
+        vo.setCreateTime(model.getCreateTime());
+        vo.setStatus(MODEL_STATUS_ON_SALE);
+        return vo;
+    }
+
+    private CarModelVo buildRecommendVo(CarModel model, BigDecimal dailyPrice) {
+        CarModelVo vo = new CarModelVo();
+        vo.setId(model.getId());
+        vo.setBrandSeries(model.getBrandSeries());
+        vo.setCarType(model.getCarType());
+        vo.setSeatsDoors(model.getSeatsDoors());
+        vo.setMainImage(model.getMainImage());
+        vo.setDailyPrice(dailyPrice == null ? BigDecimal.ZERO : dailyPrice);
+        return vo;
+    }
+
+    private BigDecimal getMinDailyPrice(List<CarInstance> instances) {
+        if (instances == null || instances.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        return instances.stream()
+                .map(CarInstance::getDailyRentPrice)
+                .filter(price -> price != null)
+                .min(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
+    }
+
+    private void checkModelAddParams(CarModelAddDto addDto) {
+        if (addDto == null) {
+            throw new RuntimeException("车型参数不能为空");
+        }
+        if (!StringUtils.hasText(addDto.getBrandSeries())) {
+            throw new RuntimeException("品牌车系不能为空");
+        }
+        if (!StringUtils.hasText(addDto.getCarType())) {
+            throw new RuntimeException("车辆类型不能为空");
+        }
+        if (!StringUtils.hasText(addDto.getSeatsDoors())) {
+            throw new RuntimeException("座位/车门配置不能为空");
+        }
+    }
+
+    private Date parseDateTime(String dateTime, String errorMessage) {
+        try {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            dateFormat.setLenient(false);
+            return dateFormat.parse(dateTime);
+        } catch (ParseException e) {
+            throw new RuntimeException(errorMessage);
+        }
+    }
+}

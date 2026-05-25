@@ -38,23 +38,24 @@
           
           <!-- Search Box -->
           <el-card class="search-card">
-            <el-form :inline="true" class="search-form">
-              <el-form-item label="取车城市">
-                <el-select placeholder="请选择城市" style="width: 150px">
-                  <el-option label="北京" value="beijing"></el-option>
-                  <el-option label="上海" value="shanghai"></el-option>
+            <el-form :inline="true" class="search-form" :model="searchParams">
+              <el-form-item label="取还车门店">
+                <el-select v-model="searchParams.storeId" placeholder="请选择门店" style="width: 250px">
+                  <el-option v-for="store in stores" :key="store.id" :label="formatStoreLabel(store)" :value="store.id" />
                 </el-select>
               </el-form-item>
-              <el-form-item label="取还车时间">
+              <el-form-item label="用车时间">
                 <el-date-picker
-                  type="daterange"
+                  v-model="searchParams.timeRange"
+                  type="datetimerange"
                   range-separator="至"
-                  start-placeholder="取车日期"
-                  end-placeholder="还车日期"
+                  start-placeholder="取车时间"
+                  end-placeholder="还车时间"
+                  value-format="YYYY-MM-DD HH:mm:ss"
                 />
               </el-form-item>
               <el-form-item>
-                <el-button type="primary" size="large" @click="$router.push('/search')">立即去选车</el-button>
+                <el-button type="primary" size="large" @click="goSelectCar">立即去选车</el-button>
               </el-form-item>
             </el-form>
           </el-card>
@@ -95,6 +96,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../store';
 import { ArrowDown } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
 import request from '../utils/request';
 
 const router = useRouter();
@@ -102,6 +104,11 @@ const userStore = useUserStore();
 
 const activeIndex = ref('/');
 const recommendCars = ref([]);
+const stores = ref([]);
+const searchParams = ref({
+  storeId: '',
+  timeRange: []
+});
 
 const isLoggedIn = computed(() => !!userStore.token);
 
@@ -123,8 +130,55 @@ const loadRecommendCars = async () => {
   }
 };
 
+const loadStores = async () => {
+  try {
+    const res = await request.get('/store/list', { params: { page: 1, pageSize: 100 } });
+    stores.value = res.records || [];
+    if (stores.value.length > 0 && !searchParams.value.storeId) {
+      searchParams.value.storeId = stores.value[0].id;
+    }
+  } catch (error) {
+    console.error('Failed to load stores', error);
+  }
+};
+
+const formatStoreLabel = (store) => {
+  return `${store.merchantName || ''}${store.address ? ' - ' + store.address : ''}`;
+};
+
+const formatDate = (date) => {
+  const pad = (n) => n < 10 ? '0' + n : n;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
+};
+
+const initDefaultTimeRange = () => {
+  const start = new Date();
+  start.setHours(10, 0, 0, 0);
+  const end = new Date();
+  end.setDate(end.getDate() + 2);
+  end.setHours(10, 0, 0, 0);
+  searchParams.value.timeRange = [formatDate(start), formatDate(end)];
+};
+
+const goSelectCar = () => {
+  if (!searchParams.value.storeId || !searchParams.value.timeRange || searchParams.value.timeRange.length !== 2) {
+    ElMessage.warning('请选择门店和完整的取还车时间');
+    return;
+  }
+  router.push({
+    path: '/search',
+    query: {
+      storeId: searchParams.value.storeId,
+      startTime: searchParams.value.timeRange[0],
+      endTime: searchParams.value.timeRange[1]
+    }
+  });
+};
+
 onMounted(() => {
+  initDefaultTimeRange();
   loadRecommendCars();
+  loadStores();
 });
 </script>
 
