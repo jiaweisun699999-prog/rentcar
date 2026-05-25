@@ -58,6 +58,7 @@
               <el-table-column label="操作">
                 <template #default="scope">
                   <el-button size="small" type="primary" plain v-if="scope.row.status === 0" @click="handlePayment(scope.row)">去支付</el-button>
+                  <el-button size="small" type="warning" plain v-else-if="scope.row.status === 2" @click="handleReturn(scope.row)">还车</el-button>
                   <el-button size="small" type="info" plain v-else @click="handleDetail(scope.row)">查看详情</el-button>
                 </template>
               </el-table-column>
@@ -163,6 +164,19 @@ const handlePayment = async (order) => {
     });
     ElMessage.success('支付成功，门店正在为您准备车辆');
     fetchOrders(); // 刷新列表
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+const handleReturn = async (order) => {
+  try {
+    await request.put('/order/status/update', {
+      orderNo: order.orderId,
+      status: 3
+    });
+    ElMessage.success('还车成功，等待门店结算');
+    fetchOrders();
   } catch (error) {
     console.error(error);
   }
