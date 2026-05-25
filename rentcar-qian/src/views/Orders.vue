@@ -58,7 +58,7 @@
               <el-table-column label="操作">
                 <template #default="scope">
                   <el-button size="small" type="primary" plain v-if="scope.row.status === 0" @click="handlePayment(scope.row)">去支付</el-button>
-                  <el-button size="small" type="info" plain v-else>查看详情</el-button>
+                  <el-button size="small" type="info" plain v-else @click="handleDetail(scope.row)">查看详情</el-button>
                 </template>
               </el-table-column>
               
@@ -67,6 +67,33 @@
               </template>
             </el-table>
           </el-card>
+
+          <!-- 订单详情弹窗 -->
+          <el-dialog v-model="detailVisible" title="订单详情" width="50%">
+            <div v-loading="detailLoading" v-if="orderDetail">
+              <el-descriptions :column="2" border>
+                <el-descriptions-item label="订单号">{{ orderDetail.orderNo }}</el-descriptions-item>
+                <el-descriptions-item label="预订车型">{{ orderDetail.brandSeries }}</el-descriptions-item>
+                <el-descriptions-item label="状态">
+                  <el-tag :type="getStatusType(orderDetail.status)">{{ getStatusText(orderDetail.status) }}</el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="创建时间">{{ orderDetail.createTime }}</el-descriptions-item>
+                <el-descriptions-item label="取车时间">{{ orderDetail.startTime }}</el-descriptions-item>
+                <el-descriptions-item label="还车时间">{{ orderDetail.endTime }}</el-descriptions-item>
+                <el-descriptions-item label="车辆押金/费">¥ {{ orderDetail.basicInsuranceFee }}</el-descriptions-item>
+                <el-descriptions-item label="租车费">¥ {{ orderDetail.rentFee }}</el-descriptions-item>
+                <el-descriptions-item label="手续费">¥ {{ orderDetail.handlingFee }}</el-descriptions-item>
+                <el-descriptions-item label="总金额"><span class="price">¥ {{ orderDetail.totalAmount }}</span></el-descriptions-item>
+                <el-descriptions-item label="取车地点">{{ orderDetail.pickupLocation }}</el-descriptions-item>
+                <el-descriptions-item label="还车地点">{{ orderDetail.dropoffLocation }}</el-descriptions-item>
+              </el-descriptions>
+            </div>
+            <template #footer>
+              <span class="dialog-footer">
+                <el-button @click="detailVisible = false">关 闭</el-button>
+              </span>
+            </template>
+          </el-dialog>
         </div>
       </el-main>
 
@@ -92,6 +119,10 @@ const userStore = useUserStore();
 const activeIndex = ref('/orders');
 const orderList = ref([]);
 const loading = ref(false);
+
+const detailVisible = ref(false);
+const detailLoading = ref(false);
+const orderDetail = ref(null);
 
 const isLoggedIn = computed(() => !!userStore.token);
 
@@ -134,6 +165,21 @@ const handlePayment = async (order) => {
     fetchOrders(); // 刷新列表
   } catch (error) {
     console.error(error);
+  }
+};
+
+const handleDetail = async (order) => {
+  detailVisible.value = true;
+  detailLoading.value = true;
+  try {
+    const res = await request.get('/order/detail', { params: { orderNo: order.orderId } });
+    orderDetail.value = res;
+  } catch (error) {
+    console.error('Failed to load order detail', error);
+    ElMessage.error('获取订单详情失败');
+    detailVisible.value = false;
+  } finally {
+    detailLoading.value = false;
   }
 };
 
