@@ -2,8 +2,11 @@ package com.msb.rentcarhou.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.msb.rentcarhou.common.result.Result;
+import com.msb.rentcarhou.dto.CarInstanceReqDto;
 import com.msb.rentcarhou.dto.CarModelAddDto;
 import com.msb.rentcarhou.dto.CarModelQueryDto;
+import com.msb.rentcarhou.entity.CarInstance;
+import com.msb.rentcarhou.service.CarInstanceService;
 import com.msb.rentcarhou.service.CarService;
 import com.msb.rentcarhou.vo.CarModelListVo;
 import com.msb.rentcarhou.vo.CarModelVo;
@@ -15,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -26,6 +30,7 @@ import java.util.List;
 public class CarController {
 
     private final CarService carService;
+    private final CarInstanceService carInstanceService;
 
     @GetMapping("/model/list")
     public Result<Page<CarModelListVo>> getModelList(CarModelQueryDto queryDto) {
@@ -62,6 +67,41 @@ public class CarController {
         try {
             carService.deleteModel(id);
             return Result.success("车型下架成功", null);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    // ===== 车辆实例 (SKU) 管理 =====
+
+    @GetMapping("/instance/list")
+    public Result<Page<CarInstance>> getInstanceList(
+            @RequestParam(required = false) Long modelId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int pageSize) {
+        try {
+            Page<CarInstance> result = carInstanceService.getInstanceList(modelId, page, pageSize);
+            return Result.success(result);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/instance/add")
+    public Result<Void> addInstance(@RequestBody CarInstanceReqDto reqDto) {
+        try {
+            carInstanceService.addInstance(reqDto);
+            return Result.success("车辆实例添加成功", null);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/instance/delete/{id}")
+    public Result<Void> deleteInstance(@PathVariable Long id) {
+        try {
+            carInstanceService.removeById(id);
+            return Result.success("车辆实例删除成功", null);
         } catch (Exception e) {
             return Result.error(e.getMessage());
         }

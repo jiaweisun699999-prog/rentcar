@@ -1,5 +1,7 @@
 package com.msb.rentcarhou.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.msb.rentcarhou.dto.CarInstanceReqDto;
 import com.msb.rentcarhou.entity.CarInstance;
@@ -45,5 +47,15 @@ public class CarInstanceServiceImpl extends ServiceImpl<CarInstanceMapper, CarIn
         carInstance.setDailyRentPrice(reqDto.getDailyRentPrice());
         carInstance.setStatus(0);
         this.save(carInstance);
+    }
+
+    @Override
+    public Page<CarInstance> getInstanceList(Long modelId, int page, int pageSize) {
+        LambdaQueryWrapper<CarInstance> wrapper = new LambdaQueryWrapper<>();
+        if (modelId != null) {
+            wrapper.eq(CarInstance::getModelId, modelId);
+        }
+        wrapper.orderByDesc(CarInstance::getCreateTime);
+        return this.page(new Page<>(page, pageSize), wrapper);
     }
 }
