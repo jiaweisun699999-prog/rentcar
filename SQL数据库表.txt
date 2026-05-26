@@ -149,3 +149,4 @@ CREATE TABLE `payment_record` (
 
 ALTER TABLE sys_user ADD COLUMN username VARCHAR(50) DEFAULT NULL COMMENT '用户名' AFTER password;
 ALTER TABLE sys_user ADD COLUMN status INT DEFAULT 1 COMMENT '状态: 1正常 0禁用' AFTER username;
+

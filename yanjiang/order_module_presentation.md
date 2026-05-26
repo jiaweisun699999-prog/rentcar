@@ -48,7 +48,7 @@ const handleBook = async () => {
 在这里，使用 `@RequestBody` 注解，框架自动把 JSON 反序列化成了 Java 里的 `OrderCreateDto` 对象。Controller 在这里就像一个交通指挥员，它不包揽脏活累活，而是立刻把 DTO 递交给 Service 层处理：
 ```java
 // 后端: OrderController.java
-@PostMapping("/order/create")
+@PostMapping("/order/create") 
 public Result<String> create(@RequestBody OrderCreateDto dto) {
     // 将参数丢给 Service 层去执行真正的核心业务
     String orderNo = carOrderService.createOrder(dto);
