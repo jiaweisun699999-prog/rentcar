@@ -54,11 +54,36 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
             return getAvailableModelPage(queryDto, pageNum, pageSize);
         }
 
+        if (queryDto == null || !StringUtils.hasText(queryDto.getCityName())) {
+            LambdaQueryWrapper<CarModel> queryWrapper = new LambdaQueryWrapper<>();
+            queryWrapper.orderByDesc(CarModel::getCreateTime);
+
+            Page<CarModel> modelPage = this.page(new Page<>(pageNum, pageSize), queryWrapper);
+            List<Long> modelIds = modelPage.getRecords().stream().map(CarModel::getId).toList();
+            Map<Long, BigDecimal> dailyPriceMap = getMinDailyPriceMap(modelIds);
+            Map<Long, String> licensePlateMap = getLicensePlateMap(modelIds, null);
+            Map<Long, String> cityNamesMap = getCityNameMap(modelIds, null);
+            Map<Long, Long> storeIdsMap = getStoreIdMap(modelIds, null);
+            List<CarModelListVo> records = modelPage.getRecords().stream()
+                    .map(model -> buildModelListVo(
+                            model,
+                            dailyPriceMap.get(model.getId()),
+                            licensePlateMap.get(model.getId()),
+                            cityNamesMap.get(model.getId()),
+                            storeIdsMap.get(model.getId())
+                    ))
+                    .toList();
+
+            Page<CarModelListVo> resultPage = new Page<>(modelPage.getCurrent(), modelPage.getSize(), modelPage.getTotal());
+            resultPage.setRecords(records);
+            return resultPage;
+        }
+
         // 查找所有未出租(status != 2)的车辆实例对应的车型ID
         LambdaQueryWrapper<CarInstance> instanceWrapper = new LambdaQueryWrapper<>();
         instanceWrapper.ne(CarInstance::getStatus, 2);
 
-        if (queryDto != null && StringUtils.hasText(queryDto.getCityName())) {
+        if (StringUtils.hasText(queryDto.getCityName())) {
             List<StoreInfo> stores = storeInfoMapper.selectList(
                     new LambdaQueryWrapper<StoreInfo>().eq(StoreInfo::getCityName, queryDto.getCityName())
             );
