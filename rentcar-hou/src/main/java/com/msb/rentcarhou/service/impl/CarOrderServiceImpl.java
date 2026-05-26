@@ -37,9 +37,18 @@ public class CarOrderServiceImpl extends ServiceImpl<CarOrderMapper, CarOrder> i
     public Page<OrderListVo> getOrderPage(OrderQueryDto dto) {
         Long currentUserId = com.msb.rentcarhou.common.utils.UserContext.getUserId();
         LambdaQueryWrapper<CarOrder> wrapper = new LambdaQueryWrapper<>();
+        
+        Integer role = 0;
         if (currentUserId != null) {
+            try {
+                role = jdbcTemplate.queryForObject("SELECT role FROM sys_user WHERE id = ?", Integer.class, currentUserId);
+            } catch (Exception ignored) {}
+        }
+        
+        if (currentUserId != null && role != 1 && role != 2) {
             wrapper.eq(CarOrder::getUserId, currentUserId);
         }
+        
         if (dto.getStatus() != null) {
             wrapper.eq(CarOrder::getStatus, dto.getStatus());
         }
@@ -99,9 +108,18 @@ public class CarOrderServiceImpl extends ServiceImpl<CarOrderMapper, CarOrder> i
         LambdaQueryWrapper<CarOrder> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(CarOrder::getOrderNo, orderNo);
         Long currentUserId = com.msb.rentcarhou.common.utils.UserContext.getUserId();
+        
+        Integer role = 0;
         if (currentUserId != null) {
+            try {
+                role = jdbcTemplate.queryForObject("SELECT role FROM sys_user WHERE id = ?", Integer.class, currentUserId);
+            } catch (Exception ignored) {}
+        }
+        
+        if (currentUserId != null && role != 1 && role != 2) {
             wrapper.eq(CarOrder::getUserId, currentUserId);
         }
+        
         CarOrder order = this.getOne(wrapper);
         if (order == null) {
             return null;

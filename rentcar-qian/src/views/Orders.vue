@@ -86,7 +86,7 @@
           </el-card>
 
           <!-- 订单详情弹窗 -->
-          <el-dialog v-model="detailVisible" title="核对尊享账单明细" width="550px" class="premium-dialog">
+          <el-dialog v-model="detailVisible" title="核对尊享账单明细" width="550px" append-to-body class="premium-dialog">
             <div v-loading="detailLoading" v-if="orderDetail" class="order-detail-popup">
               <div class="popup-header-status">
                 <span class="label">订单当前节点</span>
@@ -279,6 +279,12 @@ onMounted(() => {
   min-height: 100vh;
   background-color: #f7f9fc;
   font-family: 'Outfit', 'PingFang SC', sans-serif;
+}
+
+.orders-container :deep(.el-container) {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Header */
