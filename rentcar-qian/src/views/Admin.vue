@@ -685,12 +685,15 @@ const getOrderStatusType = (status) => {
 
 // 财务管理
 const fetchFinance = async (page) => {
+  // 分页组件切换页码时会把新页码传进来，这里同步到查询参数
   if (page) {
     financeQuery.value.page = page;
   }
   loading.value = true;
   try {
+    // 通过 axios 封装的 request 请求财务分页接口，params 会被拼到 URL 查询参数中
     const res = await request.get('/finance/list', { params: financeQuery.value });
+    // 后端返回 MyBatis-Plus 分页对象，records 给表格，total 给分页器
     financeList.value = res.records || [];
     financeTotal.value = res.total || 0;
   } catch (e) {
@@ -701,19 +704,23 @@ const fetchFinance = async (page) => {
 };
 
 const handleFinanceSearch = () => {
+  // 筛选条件变化后回到第一页，避免停留在旧页码导致查不到数据
   financeQuery.value.page = 1;
+  // 日期选择器返回数组：[开始日期, 结束日期]，这里拆成后端 DTO 需要的两个字段
   financeQuery.value.startDate = financeDateRange.value?.[0] || '';
   financeQuery.value.endDate = financeDateRange.value?.[1] || '';
   fetchFinance();
 };
 
 const resetFinanceSearch = () => {
+  // 清空日期选择器和查询条件，再重新加载全部财务流水
   financeDateRange.value = [];
   financeQuery.value = { page: 1, pageSize: 10, startDate: '', endDate: '' };
   fetchFinance();
 };
 
 const handleFinanceSizeChange = (size) => {
+  // 每页条数变化后重置到第一页，并按新的 pageSize 重新查询
   financeQuery.value.pageSize = size;
   financeQuery.value.page = 1;
   fetchFinance();
@@ -760,6 +767,7 @@ const submitStore = async () => {
 // 提交 SPU 车型
 const submitCar = async () => {
   try {
+    // 提交车型基础信息和上传后得到的 mainImage URL，后端保存到 car_model 表
     await request.post('/car/model/add', carForm.value);
     ElMessage.success('新车型 SPU 上架成功');
     carDialogVisible.value = false;
@@ -771,10 +779,13 @@ const submitCar = async () => {
 };
 
 const uploadCarImage = async (options) => {
+  // el-upload 自定义上传入口：把用户选择的文件封装成 multipart/form-data
   const formData = new FormData();
   formData.append('file', options.file);
   try {
+    // 上传接口返回图片可访问 URL，request 会自动补 /api 前缀并解包 Result.data
     const res = await request.post('/upload', formData);
+    // 把后端返回的 URL 写入车型表单，同时触发页面图片预览
     carForm.value.mainImage = res.url;
     ElMessage.success('车型图片上传成功');
     options.onSuccess?.(res);
