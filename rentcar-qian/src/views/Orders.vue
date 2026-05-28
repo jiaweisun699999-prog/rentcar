@@ -175,19 +175,31 @@ import { ArrowDown, Van } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import request from '../utils/request';
 
+/**
+ * 【全局路由与状态】
+ * useRouter: 用于页面跳转
+ * useUserStore: 访问 Pinia 状态管理库中的用户信息
+ */
 const router = useRouter();
 const userStore = useUserStore();
 
+// 顶部导航激活项
 const activeIndex = ref('/orders');
+// 响应式变量：存放从后端获取的订单列表数据，绑定到页面的 <el-table>
 const orderList = ref([]);
+// 列表加载状态，控制界面的 loading 动画
 const loading = ref(false);
 
+// 详情弹窗的可见性
 const detailVisible = ref(false);
 const detailLoading = ref(false);
+// 响应式变量：存放单个订单的详情数据，绑定到弹窗内的各种展示字段
 const orderDetail = ref(null);
 
+// 计算属性：动态判断用户是否已登录
 const isLoggedIn = computed(() => userStore.isLoggedIn);
 
+// 处理顶部下拉菜单命令（退出登录/个人中心）
 const handleCommand = (command) => {
   if (command === 'logout') {
     userStore.logout();
@@ -198,6 +210,13 @@ const handleCommand = (command) => {
   }
 };
 
+/**
+ * 【1. 查列表 (GET 请求)】
+ * 闭环前端部分：页面挂载时调用 -> axios 发送 GET 请求到 '/order/list' 携带分页参数 
+ * -> 拿到后端返回的 Result JSON (被拦截器解包出 data) 
+ * -> 将 data.records 赋值给响应式变量 orderList 
+ * -> Vue 检测到数据变化，自动重绘模板中的 <el-table>
+ */
 const fetchOrders = async () => {
   if (!isLoggedIn.value) {
     router.push('/login');
@@ -206,7 +225,9 @@ const fetchOrders = async () => {
   
   loading.value = true;
   try {
+    // 发送带有参数的 GET 请求，相当于访问 /api/order/list?page=1&pageSize=20
     const res = await request.get('/order/list', { params: { page: 1, pageSize: 20 } });
+    // 后端传回的数据赋值给页面变量
     orderList.value = res.records || [];
   } catch (error) {
     console.error('Failed to load orders', error);
@@ -215,20 +236,33 @@ const fetchOrders = async () => {
   }
 };
 
+/**
+ * 【2. 去支付 (POST 请求)】
+ * 闭环前端部分：点击表格中的“立即支付”按钮 -> 传入当前行的 order 数据 
+ * -> axios 发送 POST 请求到 '/pay/mock'，并将 JSON body 附带上 
+ * -> 后端返回成功 -> 前端弹窗提示并重新拉取列表刷新页面
+ */
 const handlePayment = async (order) => {
   try {
+    // 使用 POST 请求，携带 JSON 格式的数据体
     await request.post('/pay/mock', {
       orderNo: order.orderId,
       payType: 1,
       amount: order.totalAmount
     });
     ElMessage.success('尊享账单支付成功！门店正在为您调配准备车辆');
-    fetchOrders();
+    fetchOrders(); // 支付成功后重新调用查列表接口刷新页面
   } catch (error) {
     console.error(error);
   }
 };
 
+/**
+ * 【4. 更新状态 - 发起还车 (PUT 请求)】
+ * 闭环前端部分：点击“我要还车” -> axios 触发 PUT 请求到 '/order/status/update'
+ * -> 携带订单号和目标状态码 3 -> 后端 Service 更新数据库并释放车辆库存
+ * -> 成功返回后，前端弹窗并刷新列表数据
+ */
 const handleReturn = async (order) => {
   try {
     await request.put('/order/status/update', {
@@ -236,18 +270,25 @@ const handleReturn = async (order) => {
       status: 3
     });
     ElMessage.success('还车申请发起成功，正在等待门店核验结算！');
-    fetchOrders();
+    fetchOrders(); // 刷新表格
   } catch (error) {
     console.error(error);
   }
 };
 
+/**
+ * 【3. 查详情 (GET 请求)】
+ * 闭环前端部分：点击“查看明细” -> 打开弹窗(detailVisible=true)并展示 loading
+ * -> axios 发送 GET 请求到 '/order/detail?orderNo=xxx'
+ * -> 后端返回 OrderDetailVo (已拼接好门店中文字符串、日期格式)
+ * -> 赋值给 orderDetail，Vue 自动将数据填入弹窗的 HTML 模板中展示
+ */
 const handleDetail = async (order) => {
-  detailVisible.value = true;
-  detailLoading.value = true;
+  detailVisible.value = true; // 打开弹窗
+  detailLoading.value = true; // 开启弹窗内部的骨架屏/loading
   try {
     const res = await request.get('/order/detail', { params: { orderNo: order.orderId } });
-    orderDetail.value = res;
+    orderDetail.value = res; // 将详细数据交给 Vue 渲染
   } catch (error) {
     console.error('Failed to load order detail', error);
     ElMessage.error('获取订单详情失败');
@@ -257,16 +298,19 @@ const handleDetail = async (order) => {
   }
 };
 
+// 工具方法：根据后端状态码(0,1,2,3...)返回 Element UI 的主题颜色类别
 const getStatusType = (status) => {
   const map = { 0: 'warning', 1: 'success', 2: 'primary', 3: 'info', 4: 'success', 5: 'danger' };
   return map[status] || 'info';
 };
 
+// 工具方法：根据后端状态码转换为给用户看的中文状态文本
 const getStatusText = (status) => {
   const map = { 0: '待支付', 1: '已支付/待取车', 2: '正在租赁中', 3: '待还车结算', 4: '已履约完成', 5: '订单已取消' };
   return map[status] || '未知状态';
 };
 
+// Vue 生命周期钩子：组件挂载到 DOM 上后立刻执行（即进页面自动刷出列表）
 onMounted(() => {
   fetchOrders();
 });

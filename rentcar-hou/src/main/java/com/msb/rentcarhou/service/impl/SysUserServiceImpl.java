@@ -23,6 +23,7 @@ import org.springframework.util.StringUtils;
 public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> implements SysUserService {
 
     private final JwtUtils jwtUtils;
+    private final com.msb.rentcarhou.mapper.UserCertificationMapper userCertificationMapper;
 
     @Override
     public LoginResVo login(LoginReqDto reqDto) {
@@ -119,6 +120,78 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         Page<SysUser> userPage = this.page(page, queryWrapper);
         userPage.getRecords().forEach(user -> user.setPassword(null));
         return userPage;
+    }
+
+    @Override
+    public com.msb.rentcarhou.vo.UserCreditInfoVo getCreditInfo() {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            throw new RuntimeException("未登录或Token已过期");
+        }
+        
+        SysUser sysUser = this.getById(userId);
+        if (sysUser == null) {
+            throw new RuntimeException("用户不存在");
+        }
+
+        com.msb.rentcarhou.vo.UserCreditInfoVo vo = new com.msb.rentcarhou.vo.UserCreditInfoVo();
+        int creditScore = sysUser.getCreditScore() != null ? sysUser.getCreditScore() : 600;
+        vo.setCreditScore(creditScore);
+        vo.setIsDepositWaived(creditScore >= 700);
+
+        // 获取实名认证信息
+        com.msb.rentcarhou.entity.UserCertification certification = userCertificationMapper.selectById(userId);
+        if (certification != null) {
+            vo.setIdCardNo(certification.getIdCardNo());
+            vo.setDriverLicenseUrl(certification.getDriverLicenseUrl());
+            vo.setAuditStatus(certification.getAuditStatus());
+        } else {
+            vo.setAuditStatus(0); // 未认证
+        }
+        
+        return vo;
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public void certify(com.msb.rentcarhou.dto.CertifyReqDto reqDto) {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            throw new RuntimeException("未登录或Token已过期");
+        }
+
+        if (reqDto == null || !org.springframework.util.StringUtils.hasText(reqDto.getIdCardNo()) 
+            || !org.springframework.util.StringUtils.hasText(reqDto.getDriverLicenseUrl())) {
+            throw new RuntimeException("认证参数不完整");
+        }
+
+        // 校验身份证格式
+        if (!reqDto.getIdCardNo().matches("^[1-9]\\d{5}(18|19|20)\\d{2}((0[1-9])|(1[0-2]))(([0-2][1-9])|10|20|30|31)\\d{3}[0-9Xx]$")) {
+            throw new RuntimeException("身份证号码格式不正确");
+        }
+
+        // 查询是否已认证
+        com.msb.rentcarhou.entity.UserCertification certification = userCertificationMapper.selectById(userId);
+        if (certification == null) {
+            certification = new com.msb.rentcarhou.entity.UserCertification();
+            certification.setUserId(userId);
+            certification.setIdCardNo(reqDto.getIdCardNo());
+            certification.setDriverLicenseUrl(reqDto.getDriverLicenseUrl());
+            certification.setAuditStatus(2); // 默认直接通过(2)，符合演示站特征
+            userCertificationMapper.insert(certification);
+        } else {
+            certification.setIdCardNo(reqDto.getIdCardNo());
+            certification.setDriverLicenseUrl(reqDto.getDriverLicenseUrl());
+            certification.setAuditStatus(2); // 重新认证直接通过
+            userCertificationMapper.updateById(certification);
+        }
+
+        // 增加信用分到720分，以供测试体验免押特权
+        SysUser sysUser = this.getById(userId);
+        if (sysUser != null && (sysUser.getCreditScore() == null || sysUser.getCreditScore() < 700)) {
+            sysUser.setCreditScore(720); // 实名认证通过后自动提升为信用达标分(720分)，方便体验双免押
+            this.updateById(sysUser);
+        }
     }
 
     private void checkLoginParams(LoginReqDto reqDto) {
