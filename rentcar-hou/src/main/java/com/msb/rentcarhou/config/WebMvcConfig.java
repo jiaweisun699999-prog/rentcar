@@ -43,8 +43,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        // 将本地 uploads 目录映射为 /uploads/**，让上传后的文件可以通过 URL 直接访问
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations("file:" + System.getProperty("user.dir") + "/uploads/");
+        // 兼容项目内置静态车辆图片，和用户运行时上传的 uploads 目录分开管理
         registry.addResourceHandler("/car-images/**")
                 .addResourceLocations("classpath:/images/");
     }
