@@ -32,7 +32,7 @@ public class JwtInterceptor implements HandlerInterceptor {
             try {
                 Claims claims = jwtUtils.parseToken(token);
                 Long userId = Long.valueOf(claims.getSubject());
-                // 将 userId 存入当前线程上下文
+                // 将 userId 存入当前线程上下文 基于threadlocal
                 UserContext.setUserId(userId);
                 return true;
             } catch (Exception e) {
