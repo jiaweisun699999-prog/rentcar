@@ -82,7 +82,7 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
         // 查找所有未出租(status != 2)的车辆实例对应的车型ID
         LambdaQueryWrapper<CarInstance> instanceWrapper = new LambdaQueryWrapper<>();
         instanceWrapper.ne(CarInstance::getStatus, 2);
-
+        //  根据城市名查这个城市有哪些门店
         if (StringUtils.hasText(queryDto.getCityName())) {
             List<StoreInfo> stores = storeInfoMapper.selectList(
                     new LambdaQueryWrapper<StoreInfo>().eq(StoreInfo::getCityName, queryDto.getCityName())
@@ -93,7 +93,7 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
             List<Long> storeIds = stores.stream().map(StoreInfo::getId).toList();
             instanceWrapper.in(CarInstance::getStoreId, storeIds);
         }
-
+//        把门店ID抽出来 只查这些门店下的车  去重
         List<CarInstance> unrentedInstances = carInstanceMapper.selectList(instanceWrapper);
         Set<Long> unrentedModelIds = unrentedInstances.stream()
                 .map(CarInstance::getModelId)
@@ -209,15 +209,17 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
         return resultPage;
     }
 
+
+//    根据【门店 + 时间段】查询【真正可租用的车辆】
     private List<CarInstance> getAvailableInstances(Long storeId, Date startTime, Date endTime) {
         LambdaQueryWrapper<CarInstance> instanceWrapper = new LambdaQueryWrapper<>();
         instanceWrapper.eq(CarInstance::getStoreId, storeId)
-                .notIn(CarInstance::getStatus, CAR_STATUS_PREPARING, CAR_STATUS_MAINTENANCE);
+                .notIn(CarInstance::getStatus, CAR_STATUS_PREPARING, CAR_STATUS_MAINTENANCE); // 排除【待租、维修】车辆
         List<CarInstance> instances = carInstanceMapper.selectList(instanceWrapper);
         if (instances.isEmpty()) {
             return List.of();
         }
-
+//找出规定时间段能出租的车
         Set<Long> carIds = instances.stream().map(CarInstance::getId).collect(Collectors.toSet());
         Set<Long> occupiedCarIds = findOccupiedCarIds(carIds, startTime, endTime);
         return instances.stream().filter(instance -> !occupiedCarIds.contains(instance.getId())).toList();
@@ -227,6 +229,7 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
         if (carIds == null || carIds.isEmpty()) {
             return Set.of();
         }
+//        订单表查询
         LambdaQueryWrapper<CarOrder> orderWrapper = new LambdaQueryWrapper<>();
         orderWrapper.in(CarOrder::getCarId, carIds)
                 .notIn(CarOrder::getStatus, ORDER_STATUS_FINISHED, ORDER_STATUS_CANCELLED)
