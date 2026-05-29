@@ -28,9 +28,10 @@ public class Result<T> {
 
     public static <T> Result<T> error(Integer code, String msg) {
         Result<T> result = new Result<>();
+        String errorMsg = (msg == null || msg.trim().isEmpty()) ? "服务器处理失败，请稍后重试" : msg;
         result.setCode(code);
-        result.setMsg(msg);
-        result.setMessage(msg);
+        result.setMsg(errorMsg);
+        result.setMessage(errorMsg);
         return result;
     }
 
