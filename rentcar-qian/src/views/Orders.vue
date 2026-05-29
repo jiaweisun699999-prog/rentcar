@@ -44,6 +44,10 @@
             <h2 class="page-title">我的租车订单</h2>
           </div>
           
+          
+          <!--将数据渲染成表格 (HTML 模板部分)-->
+          <!--这部分使用了Element Plus（Vue 常用 UI 库）的表格组件-->
+          
           <el-card class="premium-card" v-loading="loading">
             <el-table :data="orderList" style="width: 100%" class="premium-table">
               <el-table-column prop="orderId" label="订单号" width="220" align="center" />
@@ -212,6 +216,7 @@ const handleCommand = (command) => {
 
 /**
  * 【1. 查列表 (GET 请求)】
+ *
  * 闭环前端部分：页面挂载时调用 -> axios 发送 GET 请求到 '/order/list' 携带分页参数 
  * -> 拿到后端返回的 Result JSON (被拦截器解包出 data) 
  * -> 将 data.records 赋值给响应式变量 orderList 
@@ -219,13 +224,13 @@ const handleCommand = (command) => {
  */
 const fetchOrders = async () => {
   if (!isLoggedIn.value) {
-    router.push('/login');
+    router.push('/login');//判断用户是否登录，如果未登录则跳转到登录页面
     return;
   }
   
   loading.value = true;
   try {
-    // 发送带有参数的 GET 请求，相当于访问 /api/order/list?page=1&pageSize=20
+    // axios发送携带分页参数的 GET 请求，相当于访问 /api/order/list?page=1&pageSize=20
     const res = await request.get('/order/list', { params: { page: 1, pageSize: 20 } });
     // 后端传回的数据赋值给页面变量
     orderList.value = res.records || [];
@@ -250,8 +255,10 @@ const handlePayment = async (order) => {
       payType: 1,
       amount: order.totalAmount
     });
-    ElMessage.success('尊享账单支付成功！门店正在为您调配准备车辆');
-    fetchOrders(); // 支付成功后重新调用查列表接口刷新页面
+    ElMessage.success('尊享账单支付成功！门店正在为您调配准备车辆');//调用了 Element Plus UI 组件库的消息提示功能
+    fetchOrders(); // 支付成功后，数据库里的状态其实已经从 0（待支付）变成了 1（已支付），
+                   // 但前端页面上的数据还是旧的。调用这个方法会重新去后端拉取一次最新的订单列表数据，
+                   // 页面上的那条订单状态就会自动刷新成“已支付”或“待取车”
   } catch (error) {
     console.error(error);
   }
@@ -310,7 +317,11 @@ const getStatusText = (status) => {
   return map[status] || '未知状态';
 };
 
-// Vue 生命周期钩子：组件挂载到 DOM 上后立刻执行（即进页面自动刷出列表）
+
+/**
+ * onMounted：这是 Vue 3 的生命周期函数。它的意思是**“当这个页面（组件）刚刚在浏览器中挂载（显示）完毕时，自动执行里面的代码”**。
+在这里，用户进入“我的订单”页面，它就会立刻、自动调用 fetchOrders() 方法，去向后端索要订单数据，从而保证用户一进来就能看到内容，而不是一个空页面。
+ */
 onMounted(() => {
   fetchOrders();
 });

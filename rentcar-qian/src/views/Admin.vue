@@ -106,7 +106,7 @@
               />
               <el-button type="primary" @click="handleStoreSearch">查询</el-button>
               <el-button @click="resetStoreSearch">重置</el-button>
-              <el-button type="warning" class="action-btn" @click="storeDialogVisible = true">新增门店</el-button>
+              <el-button type="warning" class="action-btn" @click="openAddStore">新增门店</el-button>
             </div>
           </div>
           <el-table :data="storeList" style="width: 100%" border v-loading="loading" class="premium-table">
@@ -121,8 +121,9 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="管理操作" width="150" align="center">
+            <el-table-column label="管理操作" width="200" align="center">
               <template #default="scope">
+                <el-button size="small" type="primary" link @click="openEditStore(scope.row)">编辑</el-button>
                 <el-button size="small" type="danger" link @click="deleteStore(scope.row.id)">注销门店</el-button>
               </template>
             </el-table-column>
@@ -319,8 +320,8 @@
       </el-main>
     </el-container>
 
-    <!-- 新增门店弹窗 -->
-    <el-dialog v-model="storeDialogVisible" title="运营网络新增门店" width="550px" class="premium-dialog">
+    <!-- 新增/编辑门店弹窗 -->
+    <el-dialog v-model="storeDialogVisible" :title="storeEditMode ? '编辑门店信息' : '运营网络新增门店'" width="550px" class="premium-dialog">
       <el-form :model="storeForm" label-width="100px" label-position="left">
         <el-form-item label="商户招牌">
           <el-input v-model="storeForm.merchantName" placeholder="如：飞猪尊享自驾" />
@@ -343,8 +344,8 @@
       </el-form>
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="storeDialogVisible = false">取消</el-button>
-          <el-button type="warning" @click="submitStore" class="gradient-btn">确认新增</el-button>
+          <el-button @click="closeStoreDialog">取消</el-button>
+          <el-button type="warning" @click="submitStore" class="gradient-btn">{{ storeEditMode ? '确认修改' : '确认新增' }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -459,7 +460,8 @@ const financeQuery = ref({ page: 1, pageSize: 10, startDate: '', endDate: '' });
 
 // 弹窗状态
 const storeDialogVisible = ref(false);
-const storeForm = ref({ merchantName: '', cityName: '', address: '', isSupportDelivery: 0 });
+const storeForm = ref({ id: null, merchantName: '', cityName: '', address: '', isSupportDelivery: 0 });
+const storeEditMode = ref(false);
 
 const carDialogVisible = ref(false);
 const carForm = ref({ brandSeries: '', carType: '', seatsDoors: '', mainImage: '' });
@@ -694,7 +696,7 @@ const fetchFinance = async (page) => {
     // 通过 axios 封装的 request 请求财务分页接口，params 会被拼到 URL 查询参数中
     const res = await request.get('/finance/list', { params: financeQuery.value });
     // 后端返回 MyBatis-Plus 分页对象，records 给表格，total 给分页器
-    financeList.value = res.records||[];
+    financeList.value = res.records || [];
     financeTotal.value = res.total || 0;
   } catch (e) {
     console.error(e);
@@ -750,13 +752,38 @@ const getPaymentStatusText = (status) => {
   return '挂账处理中';
 };
 
+const closeStoreDialog = () => {
+  storeDialogVisible.value = false;
+  storeEditMode.value = false;
+  storeForm.value = { id: null, merchantName: '', cityName: '', address: '', isSupportDelivery: 0 };
+};
+
+const openAddStore = () => {
+  storeEditMode.value = false;
+  storeForm.value = { id: null, merchantName: '', cityName: '', address: '', isSupportDelivery: 0 };
+  storeDialogVisible.value = true;
+};
+
+// 打开编辑门店弹窗
+const openEditStore = (row) => {
+  storeEditMode.value = true;
+  storeForm.value = { id: row.id, merchantName: row.merchantName, cityName: row.cityName, address: row.address, isSupportDelivery: row.isSupportDelivery };
+  storeDialogVisible.value = true;
+};
+
 // 提交门店
 const submitStore = async () => {
   try {
-    await request.post('/store/add', storeForm.value);
-    ElMessage.success('全新城市门店部署成功');
+    if (storeEditMode.value) {
+      await request.put('/store/update', storeForm.value);
+      ElMessage.success('门店信息修改成功');
+    } else {
+      await request.post('/store/add', storeForm.value);
+      ElMessage.success('全新城市门店部署成功');
+    }
     storeDialogVisible.value = false;
-    storeForm.value = { merchantName: '', cityName: '', address: '', isSupportDelivery: 0 };
+    storeEditMode.value = false;
+    storeForm.value = { id: null, merchantName: '', cityName: '', address: '', isSupportDelivery: 0 };
     storeQuery.value.page = 1;
     fetchStores();
   } catch (e) {
