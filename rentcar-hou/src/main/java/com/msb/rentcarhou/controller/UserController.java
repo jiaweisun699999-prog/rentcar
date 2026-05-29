@@ -59,4 +59,24 @@ public class UserController {
             return Result.error(e.getMessage());
         }
     }
+
+    @GetMapping("/credit-info")
+    public Result<com.msb.rentcarhou.vo.UserCreditInfoVo> getCreditInfo() {
+        try {
+            com.msb.rentcarhou.vo.UserCreditInfoVo creditInfo = sysUserService.getCreditInfo();
+            return Result.success(creditInfo);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/certify")
+    public Result<Void> certify(@RequestBody com.msb.rentcarhou.dto.CertifyReqDto reqDto) {
+        try {
+            sysUserService.certify(reqDto);
+            return Result.success("认证成功", null);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
 }

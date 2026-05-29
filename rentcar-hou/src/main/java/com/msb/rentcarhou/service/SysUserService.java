@@ -14,4 +14,9 @@ public interface SysUserService extends IService<SysUser> {
     void register(RegisterReqDto reqDto);
     UserInfoVo getCurrentUserInfo();
     Page<SysUser> getUserList(UserQueryDto queryDto);
+    
+    // 实名认证与信用相关
+    com.msb.rentcarhou.vo.UserCreditInfoVo getCreditInfo();
+    void certify(com.msb.rentcarhou.dto.CertifyReqDto reqDto);
 }
+
