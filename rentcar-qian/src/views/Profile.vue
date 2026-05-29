@@ -92,18 +92,34 @@
                   <el-row :gutter="20">
                     <el-col :span="24">
                       <el-form-item label="真实身份证件号 (18位)">
+                        <!-- 编辑模式下显示输入框 -->
                         <el-input 
+                          v-if="isEditing"
                           v-model="certForm.idCardNo" 
                           placeholder="请输入您的 18 位身份证号码" 
                           size="large"
                           class="premium-input">
+                        </el-input>
+                        <!-- 认证成功且处于非编辑模式下显示打码输入框 -->
+                        <el-input 
+                          v-else
+                          :value="displayedIdCard" 
+                          readonly 
+                          size="large"
+                          class="premium-input readonly-masked-input">
+                          <template #suffix>
+                            <el-icon class="toggle-visibility-icon" @click="toggleIdCardVisibility" style="cursor: pointer; font-size: 1.1rem; color: #94a3b8; display: inline-flex; align-items: center; justify-content: center; height: 100%;">
+                              <component :is="showRawIdCard ? Hide : View" />
+                            </el-icon>
+                          </template>
                         </el-input>
                       </el-form-item>
                     </el-col>
                   </el-row>
 
                   <el-form-item label="中华人民共和国机动车驾驶证 (主页图像)">
-                    <div class="uploader-wrapper">
+                    <!-- 编辑模式下显示上传区域，支持上传时预览 -->
+                    <div class="uploader-wrapper" v-if="isEditing">
                       <el-upload
                         class="license-uploader"
                         action=""
@@ -126,12 +142,38 @@
                         </div>
                       </el-upload>
                     </div>
+                    
+                    <!-- 认证成功且处于非编辑状态下，隐藏照片展示，代以高度拟物化的安全保险库卡片 -->
+                    <div class="secure-encrypted-card" v-else>
+                      <div class="secure-glow"></div>
+                      <el-icon class="secure-lock-icon"><Lock /></el-icon>
+                      <div class="secure-info">
+                        <h4>机动车驾驶证已安全加密托管</h4>
+                        <p>为保障您的个人隐私安全，平台已对您的原始驾驶证文件进行金融级加密处理，不可直接预览。</p>
+                      </div>
+                    </div>
                   </el-form-item>
 
                   <el-form-item class="form-action-row">
-                    <el-button type="warning" @click="submitCertify" :loading="submitLoading" class="submit-btn-gradient">
+                    <!-- 编辑状态：显示提交按钮 -->
+                    <el-button 
+                      v-if="isEditing"
+                      type="warning" 
+                      @click="submitCertify" 
+                      :loading="submitLoading" 
+                      class="submit-btn-gradient">
                       提交权威机构实人验证
                     </el-button>
+                    <!-- 认证成功且非编辑状态：显示勋章及重新认证按钮 -->
+                    <div class="certified-banner-row" v-else>
+                      <div class="certified-badge">
+                        <el-icon class="badge-icon"><CircleCheck /></el-icon>
+                        <span class="badge-text">已完成尊享实名及驾驶执照核验，享有完整租车资格</span>
+                      </div>
+                      <el-button @click="startReCertify" class="re-verify-btn">
+                        重新核验登记
+                      </el-button>
+                    </div>
                   </el-form-item>
                 </el-form>
               </el-card>
@@ -161,7 +203,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../store';
-import { ArrowDown, Van, CircleCheck, Warning, Plus, Edit } from '@element-plus/icons-vue';
+import { ArrowDown, Van, CircleCheck, Warning, Plus, Edit, View, Hide, Lock } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import request from '../utils/request';
 
@@ -172,11 +214,36 @@ const isLoggedIn = computed(() => userStore.isLoggedIn);
 const loadingCredit = ref(false);
 const submitLoading = ref(false);
 const creditInfo = ref(null);
+const isEditing = ref(false);
+const showRawIdCard = ref(false);
 
 const certForm = ref({
   idCardNo: '',
   driverLicenseUrl: ''
 });
+
+const toggleIdCardVisibility = () => {
+  showRawIdCard.value = !showRawIdCard.value;
+};
+
+const maskIdCard = (idCard) => {
+  if (!idCard) return '';
+  if (idCard.length !== 18) return idCard;
+  return idCard.substring(0, 6) + '********' + idCard.substring(14);
+};
+
+const displayedIdCard = computed(() => {
+  if (isEditing.value) {
+    return certForm.value.idCardNo;
+  }
+  return showRawIdCard.value ? certForm.value.idCardNo : maskIdCard(certForm.value.idCardNo);
+});
+
+const startReCertify = () => {
+  isEditing.value = true;
+  certForm.value.idCardNo = '';
+  certForm.value.driverLicenseUrl = '';
+};
 
 const handleCommand = (command) => {
   if (command === 'logout') {
@@ -200,6 +267,12 @@ const fetchCreditInfo = async () => {
     if (data && data.driverLicenseUrl) {
       certForm.value.driverLicenseUrl = data.driverLicenseUrl;
     }
+    // 如果已经认证通过，则默认展示安全锁状态(非编辑状态)，否则允许编辑
+    if (data && data.auditStatus === 2) {
+      isEditing.value = false;
+    } else {
+      isEditing.value = true;
+    }
   } catch (error) {
     console.error(error);
   } finally {
@@ -215,7 +288,8 @@ const uploadLicenseImage = async (options) => {
   
   try {
     const res = await request.post('/upload', formData);
-    certForm.value.driverLicenseUrl = res;
+    // 修复图片无法显示的Bug：后台返回的是包含 url 的对象 {"url": "..."}，我们需要提取 res.url 字符串
+    certForm.value.driverLicenseUrl = res.url || res;
     ElMessage.success('驾驶执照图片上传并解析成功，请提交验证保存！');
   } catch (error) {
     console.error('Upload failed', error);
@@ -794,5 +868,128 @@ onMounted(() => {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(15px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* 隐私安全防护样式 */
+.readonly-masked-input :deep(.el-input__wrapper) {
+  background-color: rgba(0, 0, 0, 0.02) !important;
+  box-shadow: 0 0 0 1px #e2e8f0 inset !important;
+}
+
+.readonly-masked-input :deep(.el-input__inner) {
+  letter-spacing: 2px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-weight: 600;
+  color: #334155 !important;
+}
+
+.toggle-visibility-icon {
+  transition: all 0.3s;
+}
+
+.toggle-visibility-icon:hover {
+  color: #ff9f1c !important;
+  transform: scale(1.15);
+}
+
+.secure-encrypted-card {
+  width: 100%;
+  border-radius: 16px;
+  padding: 45px 20px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 15px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
+  box-sizing: border-box;
+}
+
+.secure-glow {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 159, 28, 0.06) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.secure-lock-icon {
+  font-size: 2rem;
+  color: #ff9f1c;
+  background: rgba(255, 159, 28, 0.1);
+  padding: 14px;
+  border-radius: 50%;
+  box-shadow: 0 0 20px rgba(255, 159, 28, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.secure-info h4 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 6px 0;
+  letter-spacing: 0.5px;
+}
+
+.secure-info p {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin: 0;
+  max-width: 420px;
+  line-height: 1.5;
+}
+
+.certified-banner-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.certified-badge {
+  background: rgba(34, 197, 94, 0.05);
+  border: 1px solid rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex: 1;
+  text-align: left;
+}
+
+.certified-badge .badge-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.re-verify-btn {
+  border-radius: 12px !important;
+  height: 40px;
+  font-weight: 600;
+  border-color: #cbd5e1 !important;
+  transition: all 0.3s;
+  background-color: #fff !important;
+  color: #64748b !important;
+}
+
+.re-verify-btn:hover {
+  color: #ff9f1c !important;
+  border-color: #ff9f1c !important;
+  background-color: rgba(255, 159, 28, 0.02) !important;
 }
 </style>
