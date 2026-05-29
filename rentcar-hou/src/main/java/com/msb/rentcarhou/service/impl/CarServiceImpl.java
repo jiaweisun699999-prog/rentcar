@@ -64,10 +64,10 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
             // 先分页查车型主表，再批量补充最低日租价、车牌、城市、门店等展示字段
             Page<CarModel> modelPage = this.page(new Page<>(pageNum, pageSize), queryWrapper);
             List<Long> modelIds = modelPage.getRecords().stream().map(CarModel::getId).toList();
-            Map<Long, BigDecimal> dailyPriceMap = getMinDailyPriceMap(modelIds);
-            Map<Long, String> licensePlateMap = getLicensePlateMap(modelIds, null);
-            Map<Long, String> cityNamesMap = getCityNameMap(modelIds, null);
-            Map<Long, Long> storeIdsMap = getStoreIdMap(modelIds, null);
+            Map<Long, BigDecimal> dailyPriceMap = getMinDailyPriceMap(modelIds);  //日租
+            Map<Long, String> licensePlateMap = getLicensePlateMap(modelIds, null); //车牌
+            Map<Long, String> cityNamesMap = getCityNameMap(modelIds, null); //城市名
+            Map<Long, Long> storeIdsMap = getStoreIdMap(modelIds, null); //门店ID
             List<CarModelListVo> records = modelPage.getRecords().stream()
                     .map(model -> buildModelListVo(
                             model,
@@ -178,7 +178,7 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
         if (id == null) {
             throw new RuntimeException("车型ID不能为空");
         }
-        // MyBatis-Plus 根据主键删除车型记录，具体是否逻辑删除取决于实体字段配置
+        // MyBatis-Plus 根据主键删除车型记录，具体是否逻辑删除取决于实体字段配置  //
         this.removeById(id);
     }
 
@@ -381,7 +381,7 @@ public class CarServiceImpl extends ServiceImpl<CarModelMapper, CarModel> implem
         if (modelIds == null || modelIds.isEmpty()) {
             return Map.of();
         }
-        // 批量查询车型下的车辆实例，避免循环中逐个查库造成 N+1 查询问题
+        // 批量查询车型下的车辆实例
         List<CarInstance> instances = carInstanceMapper.selectList(
                 new LambdaQueryWrapper<CarInstance>().in(CarInstance::getModelId, modelIds)
         );

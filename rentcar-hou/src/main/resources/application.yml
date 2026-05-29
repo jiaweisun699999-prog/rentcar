@@ -6,7 +6,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/wukong_rental?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
     username: root
-    password: root3200 # 请根据实际情况修改
+    password: 123456
   servlet:
     multipart:
       max-file-size: 10MB
