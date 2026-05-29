@@ -21,7 +21,9 @@ public class FinanceController {
     @GetMapping("/list")
     public Result<Page<FinanceRecordVo>> list(FinanceQueryDto queryDto) {
         try {
+            // 接收前端分页和日期筛选参数，交给 Service 层完成具体查询和 VO 转换
             Page<FinanceRecordVo> page = financeService.getFinanceList(queryDto);
+            // 使用统一 Result 格式返回，前端 axios 响应拦截器会自动解包 data
             return Result.success(page);
         } catch (Exception e) {
             return Result.error(e.getMessage());
