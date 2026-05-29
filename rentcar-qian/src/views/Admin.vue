@@ -121,8 +121,9 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="管理操作" width="150" align="center">
+            <el-table-column label="管理操作" width="200" align="center">
               <template #default="scope">
+                <el-button size="small" type="primary" link @click="openEditStore(scope.row)">编辑</el-button>
                 <el-button size="small" type="danger" link @click="deleteStore(scope.row.id)">注销门店</el-button>
               </template>
             </el-table-column>
@@ -319,8 +320,8 @@
       </el-main>
     </el-container>
 
-    <!-- 新增门店弹窗 -->
-    <el-dialog v-model="storeDialogVisible" title="运营网络新增门店" width="550px" class="premium-dialog">
+    <!-- 新增/编辑门店弹窗 -->
+    <el-dialog v-model="storeDialogVisible" :title="storeForm.id ? '编辑门店信息' : '运营网络新增门店'" width="550px" class="premium-dialog">
       <el-form :model="storeForm" label-width="100px" label-position="left">
         <el-form-item label="商户招牌">
           <el-input v-model="storeForm.merchantName" placeholder="如：飞猪尊享自驾" />
@@ -344,7 +345,7 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="storeDialogVisible = false">取消</el-button>
-          <el-button type="warning" @click="submitStore" class="gradient-btn">确认新增</el-button>
+          <el-button type="warning" @click="submitStore" class="gradient-btn">{{ storeForm.id ? '确认修改' : '确认新增' }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -459,7 +460,7 @@ const financeQuery = ref({ page: 1, pageSize: 10, startDate: '', endDate: '' });
 
 // 弹窗状态
 const storeDialogVisible = ref(false);
-const storeForm = ref({ merchantName: '', cityName: '', address: '', isSupportDelivery: 0 });
+const storeForm = ref({ id: null, merchantName: '', cityName: '', address: '', isSupportDelivery: 0 });
 
 const carDialogVisible = ref(false);
 const carForm = ref({ brandSeries: '', carType: '', seatsDoors: '', mainImage: '' });
@@ -750,13 +751,24 @@ const getPaymentStatusText = (status) => {
   return '挂账处理中';
 };
 
-// 提交门店
+// 打开编辑门店弹窗
+const openEditStore = (row) => {
+  storeForm.value = { id: row.id, merchantName: row.merchantName, cityName: row.cityName, address: row.address, isSupportDelivery: row.isSupportDelivery };
+  storeDialogVisible.value = true;
+};
+
+// 提交门店（新增或修改）
 const submitStore = async () => {
   try {
-    await request.post('/store/add', storeForm.value);
-    ElMessage.success('全新城市门店部署成功');
+    if (storeForm.value.id) {
+      await request.put('/store/update', storeForm.value);
+      ElMessage.success('门店信息修改成功');
+    } else {
+      await request.post('/store/add', storeForm.value);
+      ElMessage.success('全新城市门店部署成功');
+    }
     storeDialogVisible.value = false;
-    storeForm.value = { merchantName: '', cityName: '', address: '', isSupportDelivery: 0 };
+    storeForm.value = { id: null, merchantName: '', cityName: '', address: '', isSupportDelivery: 0 };
     storeQuery.value.page = 1;
     fetchStores();
   } catch (e) {
