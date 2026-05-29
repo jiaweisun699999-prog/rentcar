@@ -26,6 +26,7 @@ public class OrderController {
 
     /**
      * 获取订单列表接口
+     * 
      * @param dto 封装了前端传来的分页参数(page, pageSize)和查询条件
      * @return 包含分页订单数据的统一返回结果
      */
@@ -43,6 +44,7 @@ public class OrderController {
 
     /**
      * 模拟支付接口
+     * 
      * @param params 接收前端传来的JSON参数（包含 orderNo 等）
      * @return 支付结果提示
      */
@@ -65,6 +67,7 @@ public class OrderController {
 
     /**
      * 获取订单详情接口
+     * 
      * @param orderNo 订单号（通过URL的查询参数传递，例如 ?orderNo=xxx）
      * @return 订单详情数据
      */
@@ -85,6 +88,7 @@ public class OrderController {
 
     /**
      * 订单预览接口（在用户确认下单前，展示各项费用明细）
+     * 
      * @param dto 封装了前端传来的下单预览参数（如车型ID、取还车时间地点等）
      * @return 订单费用预览数据
      */
@@ -100,6 +104,7 @@ public class OrderController {
 
     /**
      * 创建订单（提交订单）接口
+     * 
      * @param dto 封装了前端传来的下单参数
      * @return 创建成功后的订单号
      */
@@ -118,6 +123,7 @@ public class OrderController {
 
     /**
      * 更新订单状态接口（如：前端点击“还车”时调用）
+     * 
      * @param dto 封装了需要更新的订单号和目标状态码
      * @return 操作结果
      */
