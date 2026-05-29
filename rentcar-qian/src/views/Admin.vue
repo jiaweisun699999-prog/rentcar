@@ -694,7 +694,7 @@ const fetchFinance = async (page) => {
     // 通过 axios 封装的 request 请求财务分页接口，params 会被拼到 URL 查询参数中
     const res = await request.get('/finance/list', { params: financeQuery.value });
     // 后端返回 MyBatis-Plus 分页对象，records 给表格，total 给分页器
-    financeList.value = res.records  [];
+    financeList.value = res.records||[];
     financeTotal.value = res.total || 0;
   } catch (e) {
     console.error(e);
