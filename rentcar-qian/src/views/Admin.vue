@@ -771,7 +771,7 @@ const openEditStore = (row) => {
   storeDialogVisible.value = true;
 };
 
-// 提交门店
+// 提交门店（新增或修改）
 const submitStore = async () => {
   try {
     if (storeEditMode.value) {
