@@ -34,8 +34,9 @@ service.interceptors.response.use(
     if (res.code === 200) {
       return res.data;
     } else {
+      const message = res.msg || res.message || '请求处理失败，请稍后重试';
       ElMessage({
-        message: res.msg || 'Error',
+        message,
         type: 'error',
         duration: 3000
       });
@@ -46,7 +47,7 @@ service.interceptors.response.use(
           router.push('/login');
         }
       }
-      return Promise.reject(new Error(res.msg || 'Error'));
+      return Promise.reject(new Error(message));
     }
   },
   error => {
@@ -66,8 +67,9 @@ service.interceptors.response.use(
       return Promise.reject(new Error(message));
     }
     console.error('Response Error:', error);
+    const message = data?.message || data?.msg || error.message || '请求处理失败，请稍后重试';
     ElMessage({
-      message: data?.message || data?.msg || error.message,
+      message,
       type: 'error',
       duration: 3000
     });

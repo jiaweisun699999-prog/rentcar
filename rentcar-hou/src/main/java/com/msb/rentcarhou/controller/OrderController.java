@@ -31,10 +31,14 @@ public class OrderController {
      */
     @GetMapping("/order/list")
     public Result<Page<OrderListVo>> list(OrderQueryDto dto) {
-        // 调用Service层查询分页数据
-        Page<OrderListVo> page = carOrderService.getOrderPage(dto);
-        // 使用 Result.success 将数据包裹并返回给前端
-        return Result.success(page);
+        try {
+            // 调用Service层查询分页数据
+            Page<OrderListVo> page = carOrderService.getOrderPage(dto);
+            // 使用 Result.success 将数据包裹并返回给前端
+            return Result.success(page);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
     }
 
     /**
@@ -44,15 +48,19 @@ public class OrderController {
      */
     @PostMapping("/pay/mock")
     public Result<String> payMock(@RequestBody Map<String, Object> params) {
-        // 从请求体中提取订单号
-        String orderNo = (String) params.get("orderNo");
-        // 校验订单号是否为空
-        if (orderNo == null || orderNo.trim().isEmpty()) {
-            return Result.error("订单号不能为空");
+        try {
+            // 从请求体中提取订单号
+            String orderNo = (String) params.get("orderNo");
+            // 校验订单号是否为空
+            if (orderNo == null || orderNo.trim().isEmpty()) {
+                return Result.error("订单号不能为空");
+            }
+            // 调用Service层的支付逻辑，更新订单状态
+            carOrderService.payOrder(orderNo);
+            return Result.success("支付成功", null);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
         }
-        // 调用Service层的支付逻辑，更新订单状态
-        carOrderService.payOrder(orderNo);
-        return Result.success("支付成功", null);
     }
 
     /**
@@ -62,13 +70,17 @@ public class OrderController {
      */
     @GetMapping("/order/detail")
     public Result<OrderDetailVo> detail(@RequestParam("orderNo") String orderNo) {
-        // 调用Service层查询订单详细信息
-        OrderDetailVo detail = carOrderService.getOrderDetail(orderNo);
-        // 如果查不到数据，返回错误提示
-        if (detail == null) {
-            return Result.error("订单不存在或无权查看");
+        try {
+            // 调用Service层查询订单详细信息
+            OrderDetailVo detail = carOrderService.getOrderDetail(orderNo);
+            // 如果查不到数据，返回错误提示
+            if (detail == null) {
+                return Result.error("订单不存在或无权查看");
+            }
+            return Result.success(detail);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
         }
-        return Result.success(detail);
     }
 
     /**
@@ -78,8 +90,12 @@ public class OrderController {
      */
     @PostMapping("/order/preview")
     public Result<OrderPreviewVo> preview(@RequestBody OrderCreateDto dto) {
-        // 调用Service层计算各项费用，并返回预览视图对象
-        return Result.success(carOrderService.previewOrder(dto));
+        try {
+            // 调用Service层计算各项费用，并返回预览视图对象
+            return Result.success(carOrderService.previewOrder(dto));
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
     }
 
     /**
